@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { usePathname, useRouter } from 'next/navigation'
 
 type Page = 'Home' | 'Explore' | 'Create' | 'Results' | 'Settings' | 'Responder'
 type Room = { title: string; type: string; meta: string; accent: string; progress?: string }
@@ -43,4 +44,16 @@ function Thread({ close }: { close: () => void }) { return <div className="threa
 
 function Settings() { const [email, setEmail] = useState(true); return <div className="page-content narrow settings-page"><section className="intro"><p className="eyebrow accent">Your space</p><h2>Keep it<br /><em>comfortable.</em></h2><p>Small choices that keep Openly feeling like Openly.</p></section><div className="settings-list"><button><span className="setting-icon">○</span><span><strong>Your profile</strong><small>Maya Chen · maya@example.com</small></span><b>→</b></button><button onClick={() => setEmail(!email)}><span className="setting-icon">♧</span><span><strong>Email nudges</strong><small>{email ? 'A gentle nudge, never a buzz' : 'Notifications are paused'}</small></span><span className={`toggle ${email ? 'on' : ''}`}><i></i></span></button><button><span className="setting-icon">✦</span><span><strong>Privacy & anonymity</strong><small>Your answers are always anonymous</small></span><b>→</b></button><button><span className="setting-icon">?</span><span><strong>About Openly</strong><small>Our values and house rules</small></span><b>→</b></button></div><div className="privacy-card"><span>✦</span><div><strong>Built for honest rooms.</strong><p>We never show names, store IP addresses, or sell your thoughts. Rooms quietly disappear after 90 days of inactivity.</p></div></div></div> }
 
-export default function Page() { const [page, setPage] = useState<Page>('Home'); const [menu, setMenu] = useState(false); const title = page === 'Home' ? 'Good morning, Maya.' : page; const screen = page === 'Home' ? <Home setPage={setPage} /> : page === 'Explore' ? <Explore setPage={setPage} /> : page === 'Create' ? <Create setPage={setPage} /> : page === 'Responder' ? <Responder setPage={setPage} /> : page === 'Results' ? <Results /> : <Settings />; return <main className="app-shell"><Navigation page={page} setPage={setPage} /><div className="main"><Topbar title={title} openMenu={() => setMenu(true)} setPage={setPage} />{screen}</div><button className="floating-plus" onClick={() => setPage('Create')} aria-label="Create room">+</button>{menu && <MobileMenu close={() => setMenu(false)} setPage={setPage} />}</main> }
+export function OpenlyRoute() {
+  const router = useRouter()
+  const pathname = usePathname()
+  const [menu, setMenu] = useState(false)
+  const routePage: Record<string, Page> = { '/openly': 'Home', '/openly/explore': 'Explore', '/openly/create': 'Create', '/openly/results': 'Results', '/openly/responder': 'Responder', '/openly/settings': 'Settings' }
+  const page = routePage[pathname] || 'Home'
+  const setPage = (next: Page) => { router.push(next === 'Home' ? '/openly' : `/openly/${next.toLowerCase()}`) }
+  const title = page === 'Home' ? 'Good morning, Maya.' : page
+  const screen = page === 'Home' ? <Home setPage={setPage} /> : page === 'Explore' ? <Explore setPage={setPage} /> : page === 'Create' ? <Create setPage={setPage} /> : page === 'Responder' ? <Responder setPage={setPage} /> : page === 'Results' ? <Results /> : <Settings />
+  return <main className="app-shell"><Navigation page={page} setPage={setPage} /><div className="main"><Topbar title={title} openMenu={() => setMenu(true)} setPage={setPage} />{screen}</div><button className="floating-plus" onClick={() => setPage('Create')} aria-label="Create room">+</button>{menu && <MobileMenu close={() => setMenu(false)} setPage={setPage} />}</main>
+}
+
+export default function Page() { return <OpenlyRoute /> }
