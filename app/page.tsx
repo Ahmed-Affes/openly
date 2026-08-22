@@ -1,47 +1,46 @@
-export default function Page() {
-  return (
-    <main
-      style={{
-        colorScheme: 'light dark',
-        position: 'relative',
-        display: 'flex',
-        minHeight: '100vh',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: 'light-dark(#fff, #000)',
-        color: 'light-dark(#000, #fff)',
-      }}
-    >
-      <svg
-        aria-hidden="true"
-        style={{ width: 80, height: 80 }}
-        width={80}
-        height={80}
-        fill="none"
-        viewBox="0 0 20 20"
-        xmlns="http://www.w3.org/2000/svg"
-        stroke="currentColor"
-        strokeWidth="0.5"
-      >
-        <path
-          d="M14.2 14.2H17V6.9375C17 4.76288 15.2371 3 13.0625 3H5.8V5.8M14.2 14.2V7.79063L7.79062 14.2H14.2ZM14.2 14.2V17H6.9375C4.76288 17 3 15.2371 3 13.0625V5.8H5.8M5.8 5.8V12.2313L12.2313 5.8H5.8Z"
-          strokeLinejoin="round"
-        />
-      </svg>
-      <p
-        style={{
-          position: 'absolute',
-          left: '50%',
-          top: 'calc(50% + 56px)',
-          transform: 'translateX(-50%)',
-          whiteSpace: 'nowrap',
-          fontSize: '14px',
-          fontWeight: 500,
-          color: 'light-dark(#71717a, #a1a1aa)',
-        }}
-      >
-        Your v0 generation will show here.
-      </p>
-    </main>
-  )
+'use client'
+
+import { useState } from 'react'
+
+const rooms = [
+  { title: 'The Sunday Table', type: 'Reflective', people: 8, color: 'clay' },
+  { title: 'Work, but Human', type: 'Honest advice', people: 14, color: 'olive' },
+  { title: 'Tiny Joys', type: 'Lighthearted', people: 21, color: 'peach' },
+]
+
+const navItems = [
+  ['⌂', 'Home'], ['◒', 'Explore'], ['＋', 'Create'], ['▱', 'Results'], ['○', 'Settings'],
+]
+
+function Logo() { return <div className="logo"><span className="logo-mark">o</span><span>openly</span></div> }
+
+function Button({ children, onClick, variant = 'primary', className = '' }: { children: React.ReactNode; onClick?: () => void; variant?: string; className?: string }) {
+  return <button onClick={onClick} className={`button button-${variant} ${className}`}>{children}</button>
 }
+
+function Sidebar({ page, setPage }: { page: string; setPage: (p: string) => void }) {
+  return <>
+    <aside className="sidebar"><Logo /><div className="side-nav">{navItems.map(([icon, label]) => <button key={label} onClick={() => setPage(label)} className={page === label ? 'active' : ''}><span>{icon}</span><b>{label}</b></button>)}</div><div className="profile"><span className="avatar">MC</span><span><strong>Maya Chen</strong><small>Personal space</small></span><span className="dots">···</span></div></aside>
+    <nav className="bottom-nav">{navItems.map(([icon, label]) => <button key={label} onClick={() => setPage(label)} className={page === label ? 'active' : ''}><span>{icon}</span><small>{label}</small></button>)}</nav>
+  </>
+}
+
+function MobileMenu({ close, setPage }: { close: () => void; setPage: (p: string) => void }) {
+  return <div className="mobile-overlay"><div className="overlay-top"><Logo /><button onClick={close} className="close">×</button></div><div className="overlay-links">{['Home', 'Explore', 'Create', 'Results', 'Settings'].map((item, i) => <button key={item} onClick={() => { setPage(item); close() }}><span>0{i + 1}</span>{item}</button>)}</div><p className="overlay-note">A softer place to ask<br />the things that matter.</p></div>
+}
+
+function Topbar({ title, openMenu }: { title: string; openMenu: () => void }) { return <header className="topbar"><span className="mobile-logo"><Logo /></span><div><p className="eyebrow">Tuesday, October 8, 2024</p><h1>{title}</h1></div><div className="top-actions"><button aria-label="Notifications" className="icon-button">♧</button><button aria-label="Open menu" onClick={openMenu} className="hamburger"><i></i><i></i></button></div></header> }
+
+function Home({ setPage }: { setPage: (p: string) => void }) { return <div className="page-content"><section className="hero"><div><p className="eyebrow accent">A room for your thoughts</p><h2>Say what you<br /><em>really</em> mean.</h2><p className="hero-copy">Openly is a slower, kinder way to ask questions and get answers from people who understand.</p><Button onClick={() => setPage('Create')}>Start a room <span>→</span></Button></div><div className="hero-art"><span className="art-word">openly</span><span className="art-caption">no performance<br />required</span></div></section><section className="section-head"><div><p className="eyebrow">Your spaces</p><h3>Rooms worth returning to</h3></div><button className="text-button" onClick={() => setPage('Explore')}>See all →</button></section><div className="bento">{rooms.map((room, i) => <article className={`room-card ${room.color} ${i === 0 ? 'large' : ''}`} key={room.title}><div className="room-top"><span className="pill">{room.type}</span><span>↗</span></div><div><h3>{room.title}</h3><p>{room.people} thoughtful people inside</p></div></article>)}</div><section className="quote"><span className="quote-mark">“</span><p>There is no such thing as<br /><em>a small honest question.</em></p><small>— the openly note</small></section></div> }
+
+function Explore({ setPage }: { setPage: (p: string) => void }) { return <div className="page-content"><section className="intro"><p className="eyebrow accent">Find your people</p><h2>Rooms with<br /><em>something to say.</em></h2><p>Browse conversations that feel a little more human.</p></section><div className="filter-row"><button className="filter active">All rooms</button><button className="filter">Reflective</button><button className="filter">Practical</button><button className="filter">Lighthearted</button></div><div className="explore-grid">{[...rooms, { title: 'The In-Between', type: 'Life transitions', people: 6, color: 'charcoal' }].map(room => <article className={`explore-card ${room.color}`} key={room.title}><span className="pill">{room.type}</span><h3>{room.title}</h3><p>A place to share what is on your mind, without needing to have it figured out.</p><div className="card-foot"><span>{room.people} members</span><button onClick={() => setPage('Responder')}>Enter room →</button></div></article>)}</div></div> }
+
+function Create({ setPage }: { setPage: (p: string) => void }) { const [selected, setSelected] = useState('Reflective'); return <div className="page-content narrow"><section className="intro"><p className="eyebrow accent">Create something honest</p><h2>Make room<br /><em>for the real stuff.</em></h2></section><div className="create-form"><label>What kind of room is this?</label><div className="room-types">{['Reflective', 'Practical advice', 'Lighthearted', 'Open conversation'].map(type => <button key={type} onClick={() => setSelected(type)} className={selected === type ? 'selected' : ''}><span>{selected === type ? '●' : '○'}</span>{type}<small>{type === 'Reflective' ? 'For questions that need a little space.' : 'A welcoming place to begin.'}</small></button>)}</div><label>Your question or prompt</label><textarea placeholder="What have you been carrying lately?" rows={5}></textarea><div className="form-foot"><span>Everyone can participate</span><Button onClick={() => setPage('Responder')}>Open the room →</Button></div></div></div> }
+
+function Responder({ setPage }: { setPage: (p: string) => void }) { return <div className="responder"><p className="eyebrow accent">The Sunday Table · Reflective</p><span className="step">Question 01 / 03</span><h2>What is a small thing<br />you are <em>grateful</em> for<br />this week?</h2><p className="responder-note">There is no perfect answer. Just yours.</p><textarea placeholder="Take your time..." rows={4}></textarea><Button onClick={() => setPage('Results')}>Share anonymously →</Button><button className="skip">Skip this one</button></div> }
+
+function Results() { const [thread, setThread] = useState(false); return <div className="page-content"><section className="dashboard-head"><div><p className="eyebrow accent">Your reflection</p><h2>A little more<br /><em>known.</em></h2></div><span className="date-stamp">OCT<br /><b>08</b><br />2024</span></section><div className="stats"><div><b>12</b><span>rooms joined</span></div><div><b>38</b><span>answers shared</span></div><div><b>6</b><span>people reached</span></div><div><b>92%</b><span>return rate</span></div></div><section className="results-layout"><article className="reflection-card"><span className="pill">The Sunday Table</span><p>“I am grateful for the walk I took without my phone. I noticed the trees again.”</p><small>shared anonymously · today</small></article><div className="thread-list"><p className="eyebrow">Recent threads</p>{['What are you making space for?', 'A small thing worth celebrating', 'The Sunday Table'].map((x, i) => <button key={x} onClick={() => setThread(true)}><span>{x}</span><small>{i + 2} replies　→</small></button>)}</div></section>{thread && <div className="thread-panel"><div className="thread-header"><span><p className="eyebrow">Thread</p><h3>What are you making space for?</h3></span><button onClick={() => setThread(false)} className="close">×</button></div><div className="thread-message"><span className="avatar">AR</span><p>More quiet mornings, and less explaining myself.<small>Anonymous · 2h ago</small></p></div><div className="thread-message"><span className="avatar terracotta">MC</span><p>That feels like a beautiful place to start.<small>You · 1h ago</small></p></div><div className="reply"><input aria-label="Reply" placeholder="Add a thoughtful reply..." /><Button>Send</Button></div></div>}</div> }
+
+function Settings() { return <div className="page-content narrow"><section className="intro"><p className="eyebrow accent">Your space</p><h2>Keep it<br /><em>comfortable.</em></h2></section><div className="settings-list">{[['Your profile', 'Maya Chen · maya@example.com'], ['Notifications', 'A gentle nudge, never a buzz'], ['Privacy', 'Your answers are always anonymous'], ['About Openly', 'Our values and house rules']].map(([a, b]) => <button key={a}><span><strong>{a}</strong><small>{b}</small></span><b>→</b></button>)}</div></div> }
+
+export default function Page() { const [page, setPage] = useState('Home'); const [menu, setMenu] = useState(false); const screen = page === 'Home' ? <Home setPage={setPage} /> : page === 'Explore' ? <Explore setPage={setPage} /> : page === 'Create' ? <Create setPage={setPage} /> : page === 'Responder' ? <Responder setPage={setPage} /> : page === 'Results' ? <Results /> : <Settings />; return <main className="app-shell"><Sidebar page={page} setPage={setPage} /><div className="main"><Topbar title={page === 'Home' ? 'Good morning, Maya.' : page} openMenu={() => setMenu(true)} />{screen}</div><button className="floating-plus" onClick={() => setPage('Create')} aria-label="Create room">+</button>{menu && <MobileMenu close={() => setMenu(false)} setPage={setPage} />}</main> }
