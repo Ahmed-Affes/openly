@@ -2,48 +2,23 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
-import { RoomType, Question } from '@/types'
+import { AppShell } from '@/components/layout/AppShell'
+import { Button } from '@/components/shared'
 import { ROOM_TYPES } from '@/constants'
-import { Button, Pill } from '@/components/shared'
-import { useUser } from '@/hooks/useUser'
+import { Question, RoomType } from '@/types'
 
 export default function CreateRoomPage() {
-  // Don't render during build if env vars are missing
-  if (typeof window === 'undefined' && !process.env.NEXT_PUBLIC_SUPABASE_URL) {
-    return null
-  }
-
   const router = useRouter()
-  const supabase = createClient()
-  const { user } = useUser()
-  const [selectedType, setSelectedType] = useState<RoomType>('pulse_check')
+  const [selected, setSelected] = useState<RoomType>('pulse_check')
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [closesAt, setClosesAt] = useState('')
-  const [questions, setQuestions] = useState<Omit<Question, 'id' | 'created_at'>[]>([
-    { room_id: '', text: '', order_index: 0 },
-  ])
+  const [questions, setQuestions] = useState<string[]>([''])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const addQuestion = () => {
-    setQuestions([
-      ...questions,
-      { room_id: '', text: '', order_index: questions.length },
-    ])
-  }
-
   const updateQuestion = (index: number, text: string) => {
-    const updated = [...questions]
-    updated[index].text = text
-    setQuestions(updated)
-  }
-
-  const removeQuestion = (index: number) => {
-    if (questions.length > 1) {
-      setQuestions(questions.filter((_, i) => i !== index))
-    }
+    setQuestions(prev => prev.map((q, i) => (i === index ? text : q)))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -52,41 +27,33 @@ export default function CreateRoomPage() {
     setLoading(true)
 
     try {
-      if (!user) {
-        throw new Error('You must be logged in to create a room')
-      }
-
-      const validQuestions = questions
-        .filter(q => q.text.trim() !== '')
-        .map((q, i) => ({ ...q, order_index: i }))
+      const validQuestions: Omit<Question, 'id' | 'created_at'>[] = questions
+        .map(text => text.trim())
+        .filter(text => text !== '')
+        .map((text, i) => ({ room_id: '', text, order_index: i }))
 
       if (validQuestions.length === 0) {
-        throw new Error('Please add at least one question')
-      }
-
-      const roomData = {
-        name,
-        description,
-        type: selectedType,
-        status: 'open' as const,
-        is_recurring: false,
-        closes_at: closesAt ? new Date(closesAt).toISOString() : null,
+        throw new Error('Add at least one question — it is the heart of the room.')
       }
 
       const response = await fetch('/api/rooms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          room: roomData,
+          room: {
+            name,
+            description,
+            type: selected,
+            status: 'open',
+            is_recurring: false,
+            closes_at: closesAt ? new Date(closesAt).toISOString() : null,
+          },
           questions: validQuestions,
         }),
       })
 
       const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to create room')
-      }
+      if (!response.ok) throw new Error(data.error || 'Failed to create room')
 
       router.push(`/room/${data.id}/results`)
     } catch (err: any) {
@@ -97,145 +64,80 @@ export default function CreateRoomPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#FAF8F5] px-4 py-8">
-      <div className="max-w-2xl mx-auto">
-        <div className="mb-8">
-          <Pill>Create something honest</Pill>
-          <h1 className="text-3xl font-serif text-[#2D2D2D] mt-4 mb-2">
-            Make room <em>for the real stuff.</em>
-          </h1>
-          <p className="text-[#6B6B6B]">
-            Choose a format. Add your questions. We'll take care of the rest.
-          </p>
-        </div>
+    <AppShell title="Create">
+      <div className="page-content narrow">
+        <section className="intro compact-intro">
+          <p className="eyebrow accent">Create something honest</p>
+          <h2>Make room<br /><em>for the real stuff.</em></h2>
+          <p>Choose a format. Add a prompt. We will take care of the rest.</p>
+        </section>
 
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
-            {error}
-          </div>
-        )}
+        {error && <div className="form-error">{error}</div>}
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Room Type Selection */}
-          <div>
-            <label className="block text-sm font-medium text-[#2D2D2D] mb-3">
-              What kind of room is this?
-            </label>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {ROOM_TYPES.map((type) => (
-                <button
-                  key={type.value}
-                  type="button"
-                  onClick={() => setSelectedType(type.value)}
-                  className={`p-4 rounded-lg border-2 text-left transition-all ${
-                    selectedType === type.value
-                      ? 'border-[#8B7355] bg-[#8B7355]/5'
-                      : 'border-[#E5E5E5] bg-white hover:border-[#8B7355]/50'
-                  }`}
-                >
-                  <span className="type-icon text-2xl">{type.icon}</span>
-                  <div className="mt-2">
-                    <strong className="block text-[#2D2D2D]">{type.label}</strong>
-                    <small className="text-[#6B6B6B]">{type.description}</small>
-                  </div>
-                  {selectedType === type.value && (
-                    <span className="float-right text-[#8B7355]">✓</span>
-                  )}
-                </button>
-              ))}
-            </div>
+        <form className="create-form" onSubmit={handleSubmit}>
+          <div className="form-progress">
+            <span className="active">01</span><i></i><span>02</span><i></i><span>03</span>
+            <small>Room details</small>
           </div>
 
-          {/* Room Details */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="name" className="block text-sm font-medium text-[#2D2D2D] mb-2">
-                Room name
-              </label>
-              <input
-                id="name"
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-                className="w-full px-4 py-3 border border-[#E5E5E5] rounded-lg bg-white text-[#2D2D2D] placeholder-[#9CA3AF] focus:outline-none focus:ring-2 focus:ring-[#8B7355] focus:border-transparent"
-                placeholder="e.g. Sprint 12 Retro"
-              />
-            </div>
-            <div>
-              <label htmlFor="closesAt" className="block text-sm font-medium text-[#2D2D2D] mb-2">
-                Close date (optional)
-              </label>
-              <input
-                id="closesAt"
-                type="datetime-local"
-                value={closesAt}
-                onChange={(e) => setClosesAt(e.target.value)}
-                className="w-full px-4 py-3 border border-[#E5E5E5] rounded-lg bg-white text-[#2D2D2D] placeholder-[#9CA3AF] focus:outline-none focus:ring-2 focus:ring-[#8B7355] focus:border-transparent"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label htmlFor="description" className="block text-sm font-medium text-[#2D2D2D] mb-2">
-              Description (optional)
-            </label>
-            <textarea
-              id="description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={3}
-              className="w-full px-4 py-3 border border-[#E5E5E5] rounded-lg bg-white text-[#2D2D2D] placeholder-[#9CA3AF] focus:outline-none focus:ring-2 focus:ring-[#8B7355] focus:border-transparent"
-              placeholder="What is this room about?"
-            />
-          </div>
-
-          {/* Questions */}
-          <div>
-            <label className="block text-sm font-medium text-[#2D2D2D] mb-3">
-              Questions
-            </label>
-            {questions.map((question, index) => (
-              <div key={index} className="flex gap-2 mb-2">
-                <input
-                  type="text"
-                  value={question.text}
-                  onChange={(e) => updateQuestion(index, e.target.value)}
-                  className="flex-1 px-4 py-3 border border-[#E5E5E5] rounded-lg bg-white text-[#2D2D2D] placeholder-[#9CA3AF] focus:outline-none focus:ring-2 focus:ring-[#8B7355] focus:border-transparent"
-                  placeholder={`Question ${index + 1}`}
-                />
-                {questions.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => removeQuestion(index)}
-                    className="px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg"
-                  >
-                    ×
-                  </button>
-                )}
-              </div>
+          <label>What kind of room is this?</label>
+          <div className="room-types">
+            {ROOM_TYPES.map(type => (
+              <button
+                key={type.value}
+                type="button"
+                onClick={() => setSelected(type.value)}
+                className={selected === type.value ? 'selected' : ''}
+              >
+                <span className="type-icon">{type.icon}</span>
+                <span><strong>{type.label}</strong><small>{type.description}</small></span>
+                {selected === type.value && <b>✓</b>}
+              </button>
             ))}
-            <button
-              type="button"
-              onClick={addQuestion}
-              className="text-sm text-[#8B7355] hover:underline"
-            >
-              + Add another question
-            </button>
           </div>
 
-          <div className="flex items-center justify-between pt-4 border-t border-[#E5E5E5]">
-            <span className="text-sm text-[#6B6B6B]">✦ Anonymous by design</span>
-            <button
-              type="submit"
-              disabled={loading}
-              className="bg-[#2D2D2D] text-white py-3 px-6 rounded-lg font-medium hover:bg-[#3D3D3D] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? 'Creating...' : 'Create room →'}
-            </button>
+          <div className="form-grid">
+            <label>
+              Room name
+              <input value={name} onChange={e => setName(e.target.value)} required placeholder="e.g. Sprint 12 Retro" />
+            </label>
+            <label>
+              Close date
+              <input type="date" value={closesAt} onChange={e => setClosesAt(e.target.value)} />
+            </label>
+          </div>
+
+          <label>
+            Your opening prompt
+            <textarea
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              placeholder="What do you want to make space for?"
+              rows={4}
+            />
+          </label>
+
+          <label>Questions</label>
+          {questions.map((question, index) => (
+            <div className="question-row" key={index}>
+              <input
+                value={question}
+                onChange={e => updateQuestion(index, e.target.value)}
+                placeholder={`Question ${index + 1}`}
+              />
+              {questions.length > 1 && (
+                <button type="button" className="remove-question" aria-label="Remove question" onClick={() => setQuestions(prev => prev.filter((_, i) => i !== index))}>×</button>
+              )}
+            </div>
+          ))}
+          <button type="button" className="text-button" onClick={() => setQuestions(prev => [...prev, ''])}>+ Add another question</button>
+
+          <div className="form-foot">
+            <span>✦ Anonymous by design</span>
+            <Button>{loading ? 'Opening the room…' : 'Open the room　→'}</Button>
           </div>
         </form>
       </div>
-    </div>
+    </AppShell>
   )
 }

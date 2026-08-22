@@ -8,6 +8,12 @@ export const ROOM_TYPES: { value: RoomType; label: string; icon: string; descrip
   { value: 'hot_take', label: 'Hot take', icon: '!', description: 'Collect and rank honest takes' },
 ]
 
+export const ACCENTS = ['olive', 'clay', 'charcoal', 'peach']
+
+export function roomTypeLabel(type: RoomType | string): string {
+  return ROOM_TYPES.find(t => t.value === type)?.label || type
+}
+
 export const ROOM_STATUSES: RoomStatus[] = ['open', 'closed', 'scheduled']
 
 export const CADENCE_OPTIONS: Cadence[] = ['weekly', 'biweekly', 'monthly']

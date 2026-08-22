@@ -5,17 +5,6 @@ import { createClient } from '@/lib/supabase/client'
 import { User } from '@supabase/supabase-js'
 
 export function useUser() {
-  // Don't create client during build if env vars are missing
-  if (typeof window === 'undefined' && !process.env.NEXT_PUBLIC_SUPABASE_URL) {
-    return {
-      user: null,
-      loading: false,
-      error: null,
-      signOut: async () => {},
-      updateProfile: async () => {},
-    }
-  }
-
   const supabase = createClient()
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
