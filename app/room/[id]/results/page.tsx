@@ -7,6 +7,8 @@ import { RoomWithQuestions, SubmissionWithAnswers, Thread } from '@/types'
 import { useSubmissionsData, useThreadsData } from '@/hooks'
 import { Pill } from '@/components/shared'
 
+const formatRoomType = (value: string) => value.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
+
 export default function ResultsPage() {
   // Don't render during build if env vars are missing
   if (typeof window === 'undefined' && !process.env.NEXT_PUBLIC_SUPABASE_URL) {
@@ -312,7 +314,7 @@ export default function ResultsPage() {
               <div className="space-y-3">
                 <div>
                   <span className="text-sm text-[#6B6B6B]">Type</span>
-                  <div className="mt-1"><Pill>{room.type}</Pill></div>
+                  <div className="mt-1"><Pill>{formatRoomType(room.type)}</Pill></div>
                 </div>
                 <div>
                   <span className="text-sm text-[#6B6B6B]">Description</span>
