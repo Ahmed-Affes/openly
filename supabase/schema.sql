@@ -3,28 +3,11 @@
 -- ================================================================
 -- Run this entire script in your Supabase SQL Editor.
 
--- Enable UUID extension
+-- Enable UUID extensions
 create extension if not exists "uuid-ossp";
 create extension if not exists "pgcrypto";
 
 -- 1. ROOMS TABLE
-create table if costly exists rooms (
-  id uuid default gen_random_uuid() primary key,
-  creator_id uuid references auth.users(id) on delete cascade,
-  name text not null,
-  description text,
-  type text not null check (type in ('open_feedback', 'qa', 'hot_take', 'decision_vote', 'pulse_check')),
-  status text default 'open' check (status in ('open', 'closed', 'scheduled')),
-  is_recurring boolean default false,
-  cadence text check (cadence in ('weekly', 'biweekly', 'monthly')),
-  max_participants int,
-  opens_at timestamptz default now(),
-  closes_at timestamptz,
-  created_at timestamptz default now(),
-  updated_at timestamptz default now()
-);
-
--- Drop table if recreation needed / create if not exists
 create table if not exists rooms (
   id uuid default gen_random_uuid() primary key,
   creator_id uuid references auth.users(id) on delete cascade,
