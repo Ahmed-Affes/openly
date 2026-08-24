@@ -1,3 +1,5 @@
-export { Logo } from './Logo'
-export { Button } from './Button'
-export { Pill } from './Pill'
+export * from './Button'
+export * from './Logo'
+export * from './Pill'
+export * from './RoomTypeBadge'
+export * from './DatePicker'

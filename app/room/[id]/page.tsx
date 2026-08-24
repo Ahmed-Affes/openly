@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { RoomWithQuestions } from '@/types'
-import { Pill } from '@/components/shared'
+import { RoomTypeBadge, DatePicker, Button } from '@/components/shared'
+import { ArrowLeft, Check, GearSix, ShieldCheck, XCircle } from '@phosphor-icons/react'
 
 export default function RoomDetailsPage() {
   const router = useRouter()
@@ -39,7 +40,7 @@ export default function RoomDetailsPage() {
         setStatus(data.status)
         if (data.closes_at) {
           try {
-            setClosesAt(new Date(data.closes_at).toISOString().slice(0, 16))
+            setClosesAt(new Date(data.closes_at).toISOString())
           } catch {}
         }
       } catch (err: any) {
@@ -75,7 +76,7 @@ export default function RoomDetailsPage() {
         throw new Error(data.error || 'Failed to update room')
       }
 
-      setSuccess('Room updated successfully!')
+      setSuccess('Room settings saved successfully!')
       setTimeout(() => {
         router.push(`/room/${params.id}/results`)
       }, 1000)
@@ -88,130 +89,134 @@ export default function RoomDetailsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#FAF8F5]">
-        <div className="text-[#6B6B6B]">Loading room...</div>
+      <div className="min-h-screen flex items-center justify-center bg-[#f5f0e8] text-muted-foreground">
+        <div className="text-center space-y-3">
+          <div className="w-10 h-10 border-3 border-[#c2674a] border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="font-medium text-sm">Loading room settings…</p>
+        </div>
       </div>
     )
   }
 
   if (!room) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#FAF8F5]">
-        <div className="text-[#6B6B6B]">Room not found</div>
+      <div className="min-h-screen flex items-center justify-center bg-[#f5f0e8] text-center px-6">
+        <div>
+          <h1 className="font-serif text-3xl text-heading">Room not found</h1>
+          <button onClick={() => router.push('/dashboard')} className="primary-button mt-6 text-xs">
+            ← Back to dashboard
+          </button>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-[#FAF8F5] px-4 py-8">
+    <div className="min-h-screen bg-[#f5f0e8] px-4 py-10">
       <div className="max-w-2xl mx-auto">
         <div className="mb-6 flex items-center justify-between">
           <button
             onClick={() => router.push(`/room/${params.id}/results`)}
-            className="text-sm text-[#6B6B6B] hover:text-[#2D2D2D]"
+            className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-heading transition"
           >
-            ← Back to insights
+            <ArrowLeft size={16} />
+            <span>Back to insights</span>
           </button>
-          <Pill>{room.type}</Pill>
+          <RoomTypeBadge type={room.type} />
         </div>
 
-        <div className="bg-white rounded-lg border border-[#E5E5E5] p-6 shadow-sm">
-          <h1 className="text-2xl font-serif text-[#2D2D2D] mb-4">Edit Room</h1>
+        <div className="rounded-2xl border border-[#ddd5c8] bg-[#ede8dc] p-7 shadow-sm">
+          <h1 className="text-3xl font-serif text-heading mb-2">Edit Room</h1>
+          <p className="text-xs text-muted-foreground mb-6">Manage room name, description, and status.</p>
 
           {error && (
-            <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+            <div className="mb-5 bg-[#c0392b]/10 border border-[#c0392b]/30 text-[#c0392b] px-4 py-3 rounded-xl text-xs font-semibold">
               {error}
             </div>
           )}
 
           {success && (
-            <div className="mb-4 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm">
-              {success}
+            <div className="mb-5 bg-[#7c8c5e]/20 border border-[#7c8c5e]/40 text-[#7c8c5e] px-4 py-3 rounded-xl text-xs font-semibold flex items-center gap-2">
+              <Check size={16} weight="bold" />
+              <span>{success}</span>
             </div>
           )}
 
-          <form onSubmit={handleSave} className="space-y-4">
+          <form onSubmit={handleSave} className="space-y-5">
             <div>
-              <label className="block text-sm font-medium text-[#2D2D2D] mb-1">
-                Room name
+              <label className="block text-sm font-medium text-heading mb-1.5">
+                Room title
               </label>
               <input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
-                className="w-full px-4 py-2.5 border border-[#E5E5E5] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#8B7355]"
+                className="w-full text-base"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-[#2D2D2D] mb-1">
-                Description
+              <label className="block text-sm font-medium text-heading mb-1.5">
+                Description (optional)
               </label>
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={3}
-                className="w-full px-4 py-2.5 border border-[#E5E5E5] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#8B7355]"
+                className="w-full text-sm"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-[#2D2D2D] mb-1">
-                Status
+              <label className="block text-sm font-medium text-heading mb-1.5">
+                Room Status
               </label>
               <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value as any)}
-                className="w-full px-4 py-2.5 border border-[#E5E5E5] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B7355]"
+                className="w-full text-sm"
               >
                 <option value="open">Open (Accepting submissions)</option>
-                <option value="closed">Closed</option>
-                <option value="scheduled">Scheduled</option>
+                <option value="closed">Closed (Locked)</option>
               </select>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-[#2D2D2D] mb-1">
-                Automatic Close Date <span className="text-[#6B6B6B] font-normal">(Optional)</span>
-              </label>
-              <input
-                type="datetime-local"
+              <DatePicker
                 value={closesAt}
-                onChange={(e) => setClosesAt(e.target.value)}
-                className="w-full px-4 py-2.5 border border-[#E5E5E5] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B7355]"
+                onChange={setClosesAt}
+                label="Automatic Close Date"
+                placeholder="Choose close date"
               />
-              <p className="text-xs text-[#6B6B6B] mt-1">
-                Leave empty or clear this field so the room never expires automatically.
-              </p>
             </div>
 
-            <div className="pt-4 border-t border-[#E5E5E5]">
-              <h3 className="text-sm font-medium text-[#2D2D2D] mb-2">Questions in this room</h3>
+            <div className="pt-4 border-t border-[#ddd5c8]">
+              <h3 className="text-sm font-serif font-semibold text-heading mb-3">Questions in this room</h3>
               <div className="space-y-2">
                 {room.questions.map((q, i) => (
-                  <div key={q.id || i} className="p-3 bg-[#FAF8F5] rounded text-sm text-[#2D2D2D]">
-                    <span className="font-semibold text-[#8B7355] mr-2">Q{i + 1}:</span>
-                    {q.text}
+                  <div key={q.id || i} className="p-3.5 bg-[#faf7f2] rounded-xl border border-[#ddd5c8] text-xs text-heading flex items-start gap-2">
+                    <span className="font-bold text-[#c2674a]">Q{i + 1}:</span>
+                    <span>{q.text}</span>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 pt-4">
+            <div className="flex justify-end gap-3 pt-6 border-t border-[#ddd5c8]">
               <button
                 type="button"
                 onClick={() => router.push(`/room/${params.id}/results`)}
-                className="px-4 py-2 border border-[#E5E5E5] rounded-lg text-sm text-[#6B6B6B] hover:text-[#2D2D2D]"
+                className="secondary-button text-xs"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={saving}
-                className="px-5 py-2 bg-[#2D2D2D] text-white rounded-lg text-sm hover:bg-[#3D3D3D] disabled:opacity-50"
+                className="primary-button text-xs"
               >
-                {saving ? 'Saving...' : 'Save changes'}
+                {saving ? 'Saving changes…' : 'Save changes'}
               </button>
             </div>
           </form>

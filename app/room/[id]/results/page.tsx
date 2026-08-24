@@ -1,28 +1,42 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { RoomWithQuestions, SubmissionWithAnswers, Thread } from '@/types'
+import { RoomWithQuestions, Thread } from '@/types'
 import { useSubmissionsData, useThreadsData } from '@/hooks'
-import { Pill } from '@/components/shared'
-
-const formatRoomType = (value: string) => value.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
+import { RoomTypeBadge, Button } from '@/components/shared'
+import { 
+  ArrowLeft, 
+  Copy, 
+  Check, 
+  ChatCircleDots, 
+  GearSix, 
+  Sparkle, 
+  Users, 
+  Clock, 
+  ArrowClockwise,
+  XCircle,
+  PaperPlaneTilt,
+  CheckCircle,
+  Chats,
+  Smiley,
+  ShieldCheck,
+  Funnel
+} from '@phosphor-icons/react'
 
 export default function ResultsPage() {
-  // Don't render during build if env vars are missing
-  if (typeof window === 'undefined' && !process.env.NEXT_PUBLIC_SUPABASE_URL) {
-    return null
-  }
-
   const router = useRouter()
   const params = useParams()
   const supabase = createClient()
   const [room, setRoom] = useState<RoomWithQuestions | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [tab, setTab] = useState('Overview')
+  const [tab, setTab] = useState<'Overview' | 'Submissions' | 'Threads' | 'Settings'>('Overview')
   const [selectedThread, setSelectedThread] = useState<Thread | null>(null)
+  const [copied, setCopied] = useState(false)
+  const [replyText, setReplyText] = useState('')
+  const [sendingReply, setSendingReply] = useState(false)
 
   const { submissions, refetch: refetchSubmissions } = useSubmissionsData(params.id as string)
   const { threads, refetch: refetchThreads } = useThreadsData(params.id as string)
@@ -50,7 +64,7 @@ export default function ResultsPage() {
 
     loadRoom()
 
-    // Set up realtime subscriptions
+    // Realtime subscriptions
     const submissionsChannel = supabase
       .channel(`submissions:${params.id}`)
       .on(
@@ -89,10 +103,6 @@ export default function ResultsPage() {
     }
   }, [params.id, supabase, refetchSubmissions, refetchThreads])
 
-  const [replyText, setReplyText] = useState('')
-  const [sendingReply, setSendingReply] = useState(false)
-  const [copied, setCopied] = useState(false)
-
   const copyRoomLink = () => {
     if (typeof window !== 'undefined') {
       const url = `${window.location.origin}/r/${params.id}`
@@ -104,10 +114,7 @@ export default function ResultsPage() {
 
   const closeRoom = async () => {
     try {
-      const response = await fetch(`/api/rooms/${params.id}/close`, {
-        method: 'POST',
-      })
-
+      const response = await fetch(`/api/rooms/${params.id}/close`, { method: 'POST' })
       if (response.ok) {
         setRoom(prev => prev ? { ...prev, status: 'closed' } : null)
       }
@@ -123,9 +130,7 @@ export default function ResultsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'open', closes_at: null }),
       })
-
       if (response.ok) {
-        const updated = await response.json()
         setRoom(prev => prev ? { ...prev, status: 'open', closes_at: null } : null)
       }
     } catch (err) {
@@ -181,161 +186,235 @@ export default function ResultsPage() {
     }
   }
 
+  // Sentiment calculations for Overview tab
+  const reactionMetrics = useMemo(() => {
+    const allAnswers = submissions.flatMap(s => s.answers || [])
+    const reactions = allAnswers
+      .map(a => a.reaction_level)
+      .filter((r): r is number => r !== null && r !== undefined)
+
+    if (reactions.length === 0) return { avg: 50, label: 'Neutral', fine: 0, moderate: 0, critical: 0 }
+    
+    const sum = reactions.reduce((acc, r) => acc + r, 0)
+    const avg = Math.round(sum / reactions.length)
+    const fine = reactions.filter(r => r < 40).length
+    const moderate = reactions.filter(r => r >= 40 && r < 75).length
+    const critical = reactions.filter(r => r >= 75).length
+
+    const label = avg < 35 ? 'Positive & Calm' : avg < 65 ? 'Moderate / Balanced' : 'Concerning / High Tension'
+    return { avg, label, fine, moderate, critical }
+  }, [submissions])
+
+  const getBorderColor = (reaction?: number | null) => {
+    if (reaction === null || reaction === undefined) return '#ddd5c8'
+    if (reaction < 40) return '#7c8c5e'
+    if (reaction < 75) return '#d4b071'
+    return '#c2674a'
+  }
+
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#FAF8F5]">
-        <div className="text-[#6B6B6B]">Loading results...</div>
+      <div className="flex min-h-screen items-center justify-center bg-[#f5f0e8] text-muted-foreground">
+        <div className="text-center space-y-3">
+          <div className="w-10 h-10 border-3 border-[#c2674a] border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="font-medium text-sm">Gathering room insights…</p>
+        </div>
       </div>
     )
   }
 
   if (error || !room) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#FAF8F5]">
-        <div className="text-[#6B6B6B]">{error || 'Room not found'}</div>
+      <div className="flex min-h-screen items-center justify-center bg-[#f5f0e8] px-6 text-center">
+        <div>
+          <h1 className="font-serif text-3xl text-heading">Could not load room</h1>
+          <p className="mt-2 text-muted-foreground">{error || 'Room not found'}</p>
+          <button onClick={() => router.push('/dashboard')} className="primary-button mt-6">
+            ← Return to dashboard
+          </button>
+        </div>
       </div>
     )
   }
 
-  const responseRate = room.max_participants 
-    ? Math.round((submissions.length / room.max_participants) * 100)
-    : 0
-
   return (
-    <div className="min-h-screen bg-[#FAF8F5]">
-      {/* Header */}
-      <header className="bg-white border-b border-[#E5E5E5] px-6 py-4">
+    <div className="min-h-screen bg-[#f5f0e8] text-[#1c1917]">
+      {/* Top Header */}
+      <header className="border-b border-[#ddd5c8] bg-[#f5f0e8] sticky top-0 z-20 px-6 py-4 backdrop-blur-md">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <button
             onClick={() => router.push('/dashboard')}
-            className="text-[#6B6B6B] hover:text-[#2D2D2D] text-sm"
+            className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-heading transition"
           >
-            ← Back to dashboard
+            <ArrowLeft size={16} />
+            <span>Dashboard</span>
           </button>
+
           <div className="flex items-center gap-3">
             <button
               onClick={copyRoomLink}
-              className="px-3 py-1.5 text-sm border border-[#E5E5E5] bg-white rounded-lg hover:border-[#8B7355] text-[#2D2D2D] transition-colors"
+              className="px-4 py-2 bg-[#ede8dc] border border-[#ddd5c8] rounded-full text-xs font-semibold text-heading hover:bg-[#1c1917] hover:text-[#f5f0e8] transition flex items-center gap-1.5"
             >
-              {copied ? '✓ Link Copied' : '🔗 Copy Room Link'}
+              {copied ? (
+                <>
+                  <Check size={14} className="text-[#7c8c5e]" />
+                  <span>Link Copied</span>
+                </>
+              ) : (
+                <>
+                  <Copy size={14} />
+                  <span>Copy Responder Link</span>
+                </>
+              )}
             </button>
-            <button
-              onClick={() => router.push(`/room/${params.id}`)}
-              className="px-3 py-1.5 text-sm text-[#6B6B6B] hover:text-[#2D2D2D] border border-[#E5E5E5] bg-white rounded-lg hover:border-[#8B7355] transition-colors"
-            >
-              ⚙️ Settings
-            </button>
+
             {room.status === 'open' ? (
               <button
                 onClick={closeRoom}
-                className="px-3 py-1.5 text-sm text-red-600 hover:text-red-700 border border-red-200 bg-red-50/50 rounded-lg hover:bg-red-50 transition-colors"
+                className="px-4 py-2 text-xs font-semibold text-[#c0392b] border border-[#c0392b]/30 bg-[#c0392b]/10 rounded-full hover:bg-[#c0392b] hover:text-white transition"
               >
-                Close room
+                Close Room
               </button>
             ) : (
               <button
                 onClick={reopenRoom}
-                className="px-3 py-1.5 text-sm text-emerald-700 hover:text-emerald-800 border border-emerald-300 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors font-medium"
+                className="px-4 py-2 text-xs font-semibold text-[#7c8c5e] border border-[#7c8c5e]/40 bg-[#7c8c5e]/15 rounded-full hover:bg-[#7c8c5e] hover:text-white transition flex items-center gap-1"
               >
-                Reopen room
+                <ArrowClockwise size={13} />
+                <span>Reopen</span>
               </button>
             )}
-            <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-              room.status === 'open' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
-            }`}>
-              {room.status === 'open' ? '● Open' : '○ Closed'}
-            </span>
+
+            <RoomTypeBadge type={room.type} />
           </div>
         </div>
       </header>
 
+      {/* Main Content */}
       <main className="max-w-7xl mx-auto px-6 py-8">
-        {/* Room Header */}
+        {/* Title Area */}
         <section className="mb-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="eyebrow text-[#8B7355]">Your room insights · {room.name}</p>
-              <h1 className="text-3xl font-serif text-[#2D2D2D] mt-2">
-                See what is <em>underneath.</em>
-              </h1>
-              <p className="text-[#6B6B6B] mt-2">
-                {submissions.length} responses · Updated just now
-              </p>
-            </div>
+          <p className="eyebrow text-[#c2674a]">Room Insights</p>
+          <h1 className="font-serif text-3xl sm:text-4xl font-medium text-heading mt-1">
+            {room.name}
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {submissions.length} responses · {room.status === 'open' ? 'Open for responses' : 'Closed'}
+            {room.closes_at && ` · Closes ${new Date(room.closes_at).toLocaleDateString()}`}
+          </p>
+        </section>
+
+        {/* Bento Stats Layout */}
+        <section className="stats mb-8" aria-label="Room stats summary">
+          <div>
+            <span className="eyebrow flex items-center gap-1">
+              <Users size={14} /> Responses
+            </span>
+            <b>{submissions.length}</b>
+            <small>{room.max_participants ? `${room.max_participants} max allowed` : 'Unlimited capacity'}</small>
+          </div>
+          <div>
+            <span className="eyebrow flex items-center gap-1">
+              <Sparkle size={14} /> Average Sentiment
+            </span>
+            <b>{reactionMetrics.avg}<span className="text-base font-normal">/100</span></b>
+            <small className="text-[#c2674a] font-medium">{reactionMetrics.label}</small>
+          </div>
+          <div>
+            <span className="eyebrow flex items-center gap-1">
+              <Chats size={14} /> Active Threads
+            </span>
+            <b>{threads.filter(t => !t.is_resolved).length}</b>
+            <small>{threads.length} total discussion threads</small>
+          </div>
+          <div>
+            <span className="eyebrow flex items-center gap-1">
+              <Clock size={14} /> Status
+            </span>
+            <b className="capitalize text-2xl mt-2">{room.status}</b>
+            <small>{room.closes_at ? `Closes ${new Date(room.closes_at).toLocaleDateString()}` : 'No deadline'}</small>
           </div>
         </section>
 
-        {/* Tabs */}
-        <div className="flex gap-2 mb-8 border-b border-[#E5E5E5]">
-          {['Overview', 'Submissions', 'Threads', 'Settings'].map((t: string) => (
+        {/* Tab Navigation */}
+        <div className="flex gap-2 mb-8 border-b border-[#ddd5c8] pb-1">
+          {(['Overview', 'Submissions', 'Threads', 'Settings'] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
-              className={`px-4 py-3 text-sm font-medium transition-colors ${
+              className={`px-4 py-2.5 rounded-full text-sm font-semibold transition ${
                 tab === t
-                  ? 'text-[#8B7355] border-b-2 border-[#8B7355]'
-                  : 'text-[#6B6B6B] hover:text-[#2D2D2D]'
+                  ? 'bg-[#1c1917] text-[#f5f0e8]'
+                  : 'text-muted-foreground hover:bg-[#ede8dc] hover:text-heading'
               }`}
             >
-              {t === 'Threads' ? `Threads (${threads.length})` : t}
+              {t === 'Threads' ? `Threads (${threads.length})` : t === 'Submissions' ? `Submissions (${submissions.length})` : t}
             </button>
           ))}
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-white rounded-lg border border-[#E5E5E5] p-6">
-            <span className="text-sm text-[#6B6B6B]">Response rate</span>
-            <b className="block text-2xl text-[#2D2D2D] mt-1">{responseRate}%</b>
-            <small className="text-green-600">{submissions.length} responses</small>
-          </div>
-          <div className="bg-white rounded-lg border border-[#E5E5E5] p-6">
-            <span className="text-sm text-[#6B6B6B]">Questions</span>
-            <b className="block text-2xl text-[#2D2D2D] mt-1">{room.questions.length}</b>
-            <small className="text-[#6B6B6B]">In this room</small>
-          </div>
-          <div className="bg-white rounded-lg border border-[#E5E5E5] p-6">
-            <span className="text-sm text-[#6B6B6B]">Open threads</span>
-            <b className="block text-2xl text-[#2D2D2D] mt-1">{threads.filter(t => !t.is_resolved).length}</b>
-            <small className="text-[#6B6B6B]">Need attention</small>
-          </div>
-          <div className="bg-white rounded-lg border border-[#E5E5E5] p-6">
-            <span className="text-sm text-[#6B6B6B]">Status</span>
-            <b className="block text-2xl text-[#2D2D2D] mt-1 capitalize">{room.status}</b>
-            <small className="text-[#6B6B6B]">{room.closes_at ? `Closes ${new Date(room.closes_at).toLocaleDateString()}` : 'No deadline'}</small>
-          </div>
-        </div>
-
-        {/* Tab Content */}
+        {/* 1. OVERVIEW TAB: Sentiment Heatmap and Analytics Charts */}
         {tab === 'Overview' && (
           <div className="space-y-6">
-            <div className="bg-white rounded-lg border border-[#E5E5E5] p-6">
-              <h3 className="text-lg font-serif text-[#2D2D2D] mb-4">Room Details</h3>
-              <div className="space-y-3">
+            <div className="rounded-2xl border border-[#ddd5c8] bg-[#ede8dc] p-6">
+              <div className="flex items-center justify-between mb-4">
                 <div>
-                  <span className="text-sm text-[#6B6B6B]">Type</span>
-                  <div className="mt-1"><Pill>{formatRoomType(room.type)}</Pill></div>
+                  <h3 className="font-serif text-xl text-heading">Sentiment Spectrum</h3>
+                  <p className="text-xs text-muted-foreground">Distribution of emotional weight across all responses</p>
                 </div>
-                <div>
-                  <span className="text-sm text-[#6B6B6B]">Description</span>
-                  <p className="text-[#2D2D2D]">{room.description || 'No description'}</p>
+                <span className="text-sm font-semibold text-[#c2674a]">{reactionMetrics.avg}/100 Index</span>
+              </div>
+
+              {/* Gradient Bar with Marker */}
+              <div className="relative my-6">
+                <div className="h-4 rounded-full bg-gradient-to-r from-[#7c8c5e] via-[#e2c054] to-[#c2674a]" />
+                <div 
+                  className="absolute -top-1 w-2.5 h-6 bg-[#1c1917] rounded-full border-2 border-[#f5f0e8] shadow-md -translate-x-1/2 transition-all duration-500"
+                  style={{ left: `${Math.min(Math.max(reactionMetrics.avg, 3), 97)}%` }}
+                />
+              </div>
+
+              <div className="flex justify-between text-xs font-medium text-muted-foreground">
+                <span className="text-[#7c8c5e]">Calm / Fine (0)</span>
+                <span>Moderate (50)</span>
+                <span className="text-[#c2674a]">Concerning (100)</span>
+              </div>
+
+              {/* Sentiment Breakdowns */}
+              <div className="grid grid-cols-3 gap-3 mt-6 pt-6 border-t border-[#ddd5c8] text-center">
+                <div className="p-3 bg-[#faf7f2] rounded-xl border border-[#ddd5c8]">
+                  <p className="text-xs font-semibold text-[#7c8c5e]">Calm / Fine</p>
+                  <b className="font-serif text-2xl text-heading">{reactionMetrics.fine}</b>
+                  <small className="block text-xs text-muted-foreground">responses</small>
                 </div>
-                <div>
-                  <span className="text-sm text-[#6B6B6B]">Public Response Link</span>
-                  <p className="text-[#8B7355] text-sm break-all font-mono mt-1">
-                    {typeof window !== 'undefined' ? `${window.location.origin}/r/${room.id}` : `/r/${room.id}`}
-                  </p>
+                <div className="p-3 bg-[#faf7f2] rounded-xl border border-[#ddd5c8]">
+                  <p className="text-xs font-semibold text-[#8c6c2c]">Moderate</p>
+                  <b className="font-serif text-2xl text-heading">{reactionMetrics.moderate}</b>
+                  <small className="block text-xs text-muted-foreground">responses</small>
+                </div>
+                <div className="p-3 bg-[#faf7f2] rounded-xl border border-[#ddd5c8]">
+                  <p className="text-xs font-semibold text-[#c2674a]">Urgent / Heavy</p>
+                  <b className="font-serif text-2xl text-heading">{reactionMetrics.critical}</b>
+                  <small className="block text-xs text-muted-foreground">responses</small>
                 </div>
               </div>
             </div>
 
-            <div className="bg-white rounded-lg border border-[#E5E5E5] p-6">
-              <h3 className="text-lg font-serif text-[#2D2D2D] mb-4">Questions</h3>
-              <div className="space-y-4">
-                {room.questions.map((q: any, i: number) => (
-                  <div key={q.id || i} className="p-4 bg-[#FAF8F5] rounded-lg">
-                    <span className="text-sm text-[#8B7355]">Question {i + 1}</span>
-                    <p className="text-[#2D2D2D] mt-1">{q.text}</p>
+            {/* Questions Summary */}
+            <div className="rounded-2xl border border-[#ddd5c8] bg-[#ede8dc] p-6 space-y-4">
+              <h3 className="font-serif text-xl text-heading">Question Breakdown</h3>
+              <div className="space-y-3">
+                {room.questions.map((q, i) => (
+                  <div key={q.id || i} className="p-4 bg-[#faf7f2] rounded-xl border border-[#ddd5c8] flex items-start gap-3">
+                    <span className="flex size-6 items-center justify-center rounded-full bg-[#7c8c5e]/20 text-xs font-bold text-[#7c8c5e] shrink-0 mt-0.5">
+                      {i + 1}
+                    </span>
+                    <div>
+                      <p className="text-sm font-medium text-heading">{q.text}</p>
+                      <span className="text-xs text-muted-foreground mt-1 block">
+                        {submissions.filter(s => s.answers?.some(a => a.question_id === q.id && a.text)).length} responses received
+                      </span>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -343,46 +422,68 @@ export default function ResultsPage() {
           </div>
         )}
 
+        {/* 2. SUBMISSIONS TAB: Response cards with colored left border */}
         {tab === 'Submissions' && (
           <div className="space-y-4">
             {submissions.length === 0 ? (
-              <div className="bg-white rounded-lg border border-[#E5E5E5] p-12 text-center">
-                <p className="text-[#6B6B6B]">No submissions yet</p>
-                <p className="text-sm text-[#6B6B6B] mt-2">Share the room link to start collecting responses</p>
-                <button
-                  onClick={copyRoomLink}
-                  className="mt-4 bg-[#2D2D2D] text-white px-4 py-2 rounded-lg text-sm"
-                >
-                  {copied ? '✓ Link Copied' : 'Copy Room Link'}
+              <div className="rounded-2xl border border-[#ddd5c8] bg-[#ede8dc] p-12 text-center">
+                <div className="w-12 h-12 rounded-full bg-[#faf7f2] border border-[#ddd5c8] grid place-items-center mx-auto mb-3 text-[#c2674a]">
+                  <Chats size={24} />
+                </div>
+                <h3 className="font-serif text-xl text-heading">No submissions yet</h3>
+                <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
+                  Share your room link with teammates to start receiving candid anonymous feedback.
+                </p>
+                <button onClick={copyRoomLink} className="primary-button mt-5 text-xs">
+                  {copied ? '✓ Link Copied' : 'Copy Responder Link'}
                 </button>
               </div>
             ) : (
-              submissions.map((submission: any) => (
-                <div key={submission.id} className="bg-white rounded-lg border border-[#E5E5E5] p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <span className="text-sm text-[#6B6B6B]">Anonymous response</span>
-                    <span className="text-sm text-[#6B6B6B]">
-                      {new Date(submission.created_at).toLocaleString()}
+              submissions.map((submission: any, sIdx: number) => (
+                <div key={submission.id || sIdx} className="rounded-2xl border border-[#ddd5c8] bg-[#ede8dc] p-6 space-y-4">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground pb-2 border-b border-[#ddd5c8]">
+                    <span className="font-semibold text-heading flex items-center gap-1.5">
+                      <ShieldCheck size={16} className="text-[#7c8c5e]" />
+                      Anonymous Submission #{submissions.length - sIdx}
                     </span>
+                    <span>{new Date(submission.created_at).toLocaleString()}</span>
                   </div>
-                  <div className="space-y-4">
-                    {submission.answers?.map((answer: any) => (
-                      <div key={answer.id} className="p-4 bg-[#FAF8F5] rounded-lg">
-                        {answer.text && <p className="text-[#2D2D2D]">{answer.text}</p>}
-                        {answer.reaction_level !== null && answer.reaction_level !== undefined && (
-                          <div className="mt-2">
-                            <span className="text-sm text-[#6B6B6B]">Reaction: </span>
-                            <span className="text-[#2D2D2D]">{answer.reaction_level}/100</span>
+
+                  <div className="space-y-3">
+                    {submission.answers?.map((answer: any, aIdx: number) => {
+                      const borderColor = getBorderColor(answer.reaction_level)
+                      return (
+                        <div
+                          key={answer.id || aIdx}
+                          className="p-4 bg-[#faf7f2] rounded-xl border border-[#ddd5c8] shadow-sm"
+                          style={{
+                            borderLeftWidth: '5px',
+                            borderLeftColor: borderColor,
+                          }}
+                        >
+                          {answer.text && (
+                            <p className="text-sm text-heading leading-relaxed font-normal">{answer.text}</p>
+                          )}
+
+                          <div className="mt-3 pt-2 border-t border-[#ddd5c8]/50 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                            {answer.reaction_level !== null && answer.reaction_level !== undefined && (
+                              <span className="flex items-center gap-1">
+                                <span className="font-medium text-heading">Reaction:</span>
+                                <span style={{ color: borderColor }} className="font-semibold">
+                                  {answer.reaction_level}/100
+                                </span>
+                              </span>
+                            )}
+                            {answer.intensity && (
+                              <span className="flex items-center gap-1">
+                                <span className="font-medium text-heading">Weight:</span>
+                                <span className="capitalize text-heading">{answer.intensity}</span>
+                              </span>
+                            )}
                           </div>
-                        )}
-                        {answer.intensity && (
-                          <div className="mt-2">
-                            <span className="text-sm text-[#6B6B6B]">Intensity: </span>
-                            <span className="text-[#2D2D2D] capitalize">{answer.intensity}</span>
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
               ))
@@ -390,33 +491,40 @@ export default function ResultsPage() {
           </div>
         )}
 
+        {/* 3. THREADS TAB */}
         {tab === 'Threads' && (
           <div className="space-y-4">
             {threads.length === 0 ? (
-              <div className="bg-white rounded-lg border border-[#E5E5E5] p-12 text-center">
-                <p className="text-[#6B6B6B]">No threads yet</p>
-                <p className="text-sm text-[#6B6B6B] mt-1">Threads allow creators and anonymous responders to converse safely.</p>
+              <div className="rounded-2xl border border-[#ddd5c8] bg-[#ede8dc] p-12 text-center">
+                <ChatCircleDots size={32} className="text-muted-foreground mx-auto mb-2" />
+                <h3 className="font-serif text-xl text-heading">No threads started yet</h3>
+                <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
+                  When you or responders open follow-up questions, anonymous 2-way threads appear here.
+                </p>
               </div>
             ) : (
               threads.map((thread: any) => (
                 <div
                   key={thread.id}
-                  className={`bg-white rounded-lg border border-[#E5E5E5] p-6 cursor-pointer hover:shadow-lg transition-shadow ${
-                    thread.is_resolved ? 'opacity-60' : ''
-                  }`}
                   onClick={() => setSelectedThread(thread)}
+                  className={`rounded-2xl border border-[#ddd5c8] bg-[#ede8dc] p-5 cursor-pointer transition hover:-translate-y-1 hover:shadow-md ${
+                    thread.is_resolved ? 'opacity-70' : ''
+                  }`}
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-[#6B6B6B]">
-                      {thread.messages?.length || 0} messages
+                    <span className="text-xs font-semibold text-heading">
+                      {thread.messages?.length || 1} messages
                     </span>
                     <div className="flex gap-2">
-                      {thread.is_pinned && <span className="text-sm text-[#8B7355]">📌 Pinned</span>}
-                      {thread.is_resolved && <span className="text-sm text-green-600">✓ Resolved</span>}
+                      {thread.is_resolved && (
+                        <span className="text-xs px-2.5 py-0.5 rounded-full bg-[#7c8c5e]/20 text-[#7c8c5e] font-semibold flex items-center gap-1">
+                          <CheckCircle size={12} weight="fill" /> Resolved
+                        </span>
+                      )}
                     </div>
                   </div>
-                  <p className="text-[#2D2D2D]">
-                    {thread.messages?.[0]?.text || 'No messages yet'}
+                  <p className="text-sm text-heading">
+                    {thread.messages?.[0]?.text || 'Click to view conversation'}
                   </p>
                 </div>
               ))
@@ -424,115 +532,122 @@ export default function ResultsPage() {
           </div>
         )}
 
+        {/* 4. SETTINGS TAB: Room Details & Management */}
         {tab === 'Settings' && (
-          <div className="bg-white rounded-lg border border-[#E5E5E5] p-6">
-            <h3 className="text-lg font-serif text-[#2D2D2D] mb-4">Room Settings</h3>
+          <div className="rounded-2xl border border-[#ddd5c8] bg-[#ede8dc] p-6 space-y-6">
+            <h3 className="font-serif text-2xl text-heading">Room Details & Configuration</h3>
+            
             <div className="space-y-4">
-              <button
-                onClick={() => router.push(`/room/${room.id}`)}
-                className="w-full text-left px-4 py-3 hover:bg-[#FAF8F5] rounded-lg transition-colors border border-[#E5E5E5]"
-              >
-                <strong className="text-[#2D2D2D]">Room details</strong>
-                <p className="text-sm text-[#6B6B6B]">View questions and configuration</p>
-              </button>
-              <button
-                onClick={closeRoom}
-                disabled={room.status === 'closed'}
-                className="w-full text-left px-4 py-3 hover:bg-[#FAF8F5] rounded-lg transition-colors border border-[#E5E5E5] disabled:opacity-50"
-              >
-                <strong className="text-[#2D2D2D]">Close room</strong>
-                <p className="text-sm text-[#6B6B6B]">
-                  {room.status === 'closed' ? 'Room is already closed' : 'Stop accepting new responses'}
+              <div className="p-4 bg-[#faf7f2] rounded-xl border border-[#ddd5c8]">
+                <span className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">Format</span>
+                <div className="mt-1"><RoomTypeBadge type={room.type} /></div>
+              </div>
+
+              <div className="p-4 bg-[#faf7f2] rounded-xl border border-[#ddd5c8]">
+                <span className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">Description</span>
+                <p className="text-sm text-heading mt-1">{room.description || 'No description provided.'}</p>
+              </div>
+
+              <div className="p-4 bg-[#faf7f2] rounded-xl border border-[#ddd5c8]">
+                <span className="block text-xs font-bold uppercase tracking-wider text-muted-foreground">Public Response URL</span>
+                <p className="text-xs font-mono text-[#c2674a] mt-1 break-all select-all">
+                  {typeof window !== 'undefined' ? `${window.location.origin}/r/${room.id}` : `/r/${room.id}`}
                 </p>
-              </button>
+              </div>
+
+              <div className="pt-4 border-t border-[#ddd5c8] flex flex-wrap gap-3">
+                <Button onClick={() => router.push(`/room/${room.id}`)} variant="secondary">
+                  <GearSix size={16} />
+                  <span>Edit Room Settings</span>
+                </Button>
+
+                {room.status === 'open' ? (
+                  <Button onClick={closeRoom} variant="danger">
+                    <XCircle size={16} />
+                    <span>Close Room to Responses</span>
+                  </Button>
+                ) : (
+                  <Button onClick={reopenRoom} variant="secondary">
+                    <ArrowClockwise size={16} />
+                    <span>Reopen Room</span>
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         )}
       </main>
 
-      {/* Thread Panel Modal */}
+      {/* Slide-in Thread Panel from Right */}
       {selectedThread && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-lg w-full max-h-[85vh] flex flex-col overflow-hidden shadow-2xl">
-            <div className="p-6 border-b border-[#E5E5E5] flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/30 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-lg bg-[#f5f0e8] h-full shadow-2xl flex flex-col p-6 border-l border-[#ddd5c8] overflow-hidden animate-slide-left">
+            <div className="flex items-center justify-between pb-4 border-b border-[#ddd5c8]">
               <div>
-                <p className="eyebrow text-[#8B7355]">Anonymous thread</p>
-                <h3 className="text-lg font-serif text-[#2D2D2D]">
-                  {selectedThread.messages?.length || 0} messages
-                </h3>
+                <h3 className="font-serif text-xl text-heading">Anonymous Thread</h3>
+                <p className="text-xs text-muted-foreground">2-way secure communication</p>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => handleToggleResolve(selectedThread.id, selectedThread.is_resolved)}
-                  className="text-xs px-2.5 py-1 rounded border border-[#E5E5E5] hover:border-[#8B7355] text-[#6B6B6B]"
-                >
-                  {selectedThread.is_resolved ? 'Reopen' : 'Mark Resolved'}
-                </button>
-                <button
-                  onClick={() => setSelectedThread(null)}
-                  className="text-2xl text-[#6B6B6B] hover:text-[#2D2D2D]"
-                >
-                  ×
-                </button>
-              </div>
-            </div>
-            
-            <div className="p-6 overflow-y-auto flex-1 max-h-[50vh] space-y-4">
-              {(!selectedThread.messages || selectedThread.messages.length === 0) ? (
-                <p className="text-[#6B6B6B] text-sm text-center py-6">No messages in this thread yet</p>
-              ) : (
-                selectedThread.messages.map((message: any) => (
-                  <div
-                    key={message.id}
-                    className={`flex items-start gap-3 ${
-                      message.sender === 'creator' ? 'justify-end' : 'justify-start'
-                    }`}
-                  >
-                    {message.sender !== 'creator' && (
-                      <span className="w-8 h-8 rounded-full bg-[#E5E5E5] text-[#6B6B6B] flex items-center justify-center text-xs shrink-0 font-medium">
-                        AN
-                      </span>
-                    )}
-                    <div className={`p-3 rounded-lg max-w-[80%] ${
-                      message.sender === 'creator' ? 'bg-[#8B7355] text-white' : 'bg-[#FAF8F5] text-[#2D2D2D]'
-                    }`}>
-                      <p className="text-sm">{message.text}</p>
-                      <small className={`block text-[10px] mt-1 ${message.sender === 'creator' ? 'text-white/70' : 'text-[#9CA3AF]'}`}>
-                        {message.created_at ? new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
-                      </small>
-                    </div>
-                    {message.sender === 'creator' && (
-                      <span className="w-8 h-8 rounded-full bg-[#8B7355] text-white flex items-center justify-center text-xs shrink-0 font-medium">
-                        You
-                      </span>
-                    )}
-                  </div>
-                ))
-              )}
+              <button 
+                onClick={() => setSelectedThread(null)}
+                className="p-2 text-muted-foreground hover:text-heading rounded-full hover:bg-[#ede8dc]"
+              >
+                ✕
+              </button>
             </div>
 
-            <form
-              onSubmit={(e) => {
-                e.preventDefault()
-                handleSendReply()
-              }}
-              className="p-4 border-t border-[#E5E5E5] bg-white flex gap-2"
-            >
-              <input
-                type="text"
-                value={replyText}
-                onChange={(e) => setReplyText(e.target.value)}
-                placeholder="Reply with care..."
-                className="flex-1 px-4 py-2 border border-[#E5E5E5] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8B7355] text-sm"
-              />
+            {/* Thread messages */}
+            <div className="flex-1 overflow-y-auto py-4 space-y-3">
+              {selectedThread.messages?.map((msg: any, i: number) => {
+                const isCreator = msg.sender === 'creator'
+                return (
+                  <div
+                    key={msg.id || i}
+                    className={`flex flex-col max-w-[85%] rounded-2xl p-4 text-sm ${
+                      isCreator
+                        ? 'ml-auto bg-[#c2674a] text-[#f5f0e8] rounded-br-none'
+                        : 'mr-auto bg-[#ede8dc] border border-[#ddd5c8] text-heading rounded-bl-none'
+                    }`}
+                  >
+                    <span className="text-[10px] uppercase font-bold opacity-75 mb-1">
+                      {isCreator ? 'You (Creator)' : 'Anonymous Responder'}
+                    </span>
+                    <p className="leading-relaxed">{msg.text}</p>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Resolve button & Input Footer */}
+            <div className="pt-3 border-t border-[#ddd5c8] space-y-3">
               <button
-                type="submit"
-                disabled={sendingReply || !replyText.trim()}
-                className="px-4 py-2 bg-[#2D2D2D] text-white rounded-lg text-sm hover:bg-[#3D3D3D] disabled:opacity-50 disabled:cursor-not-allowed"
+                type="button"
+                onClick={() => handleToggleResolve(selectedThread.id, !!selectedThread.is_resolved)}
+                className="text-xs font-semibold text-[#7c8c5e] hover:underline flex items-center gap-1"
               >
-                {sendingReply ? 'Sending...' : 'Send'}
+                <CheckCircle size={14} weight="bold" />
+                {selectedThread.is_resolved ? 'Mark as Unresolved' : 'Mark as Resolved'}
               </button>
-            </form>
+
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={replyText}
+                  onChange={(e) => setReplyText(e.target.value)}
+                  placeholder="Type an anonymous reply…"
+                  className="flex-1 text-sm rounded-full px-4"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSendReply()
+                  }}
+                />
+                <button
+                  onClick={handleSendReply}
+                  disabled={sendingReply || !replyText.trim()}
+                  className="primary-button !px-5 rounded-full"
+                >
+                  <PaperPlaneTilt size={16} />
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

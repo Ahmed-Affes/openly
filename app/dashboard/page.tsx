@@ -6,10 +6,21 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Room } from '@/types'
 import { getScoreMessage } from '@/lib/utils/score'
-import { Logo, Button, Pill } from '@/components/shared'
+import { Logo, Button, RoomTypeBadge } from '@/components/shared'
 import { useUser } from '@/hooks/useUser'
-
-const formatRoomType = (value: string) => value.replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
+import { 
+  House, 
+  GridFour, 
+  GearSix, 
+  Sparkle, 
+  ArrowUpRight, 
+  Copy, 
+  ChartBar, 
+  XCircle, 
+  Plus,
+  Check,
+  Bell
+} from '@phosphor-icons/react'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -19,49 +30,308 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [safetyScore] = useState(84)
   const [sort, setSort] = useState<'recent' | 'open'>('recent')
+  const [copiedId, setCopiedId] = useState<string | null>(null)
 
   useEffect(() => {
     async function loadData() {
       if (!user) return
-      const { data } = await supabase.from('rooms').select('*').eq('creator_id', user.id).order('created_at', { ascending: false })
+      const { data } = await supabase
+        .from('rooms')
+        .select('*')
+        .eq('creator_id', user.id)
+        .order('created_at', { ascending: false })
       if (data) setRooms(data)
       setLoading(false)
     }
     loadData()
   }, [user, supabase])
 
-  const sortedRooms = useMemo(() => [...rooms].sort((a, b) => sort === 'open' ? Number(b.status === 'open') - Number(a.status === 'open') : new Date(b.created_at).getTime() - new Date(a.created_at).getTime()), [rooms, sort])
+  const sortedRooms = useMemo(() => {
+    return [...rooms].sort((a, b) => 
+      sort === 'open' 
+        ? Number(b.status === 'open') - Number(a.status === 'open') 
+        : new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    )
+  }, [rooms, sort])
+
   const firstName = user?.user_metadata?.name?.split(' ')[0] || user?.email?.split('@')[0] || 'there'
 
-  if (loading) return <div className="loading-state">Loading your rooms...</div>
+  // Time-aware greeting
+  const getGreeting = () => {
+    const hour = new Date().getHours()
+    if (hour < 12) return 'Good morning'
+    if (hour < 18) return 'Good afternoon'
+    return 'Good evening'
+  }
+
+  const currentDateFormatted = new Date().toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric'
+  })
+
+  const copyRoomLink = (e: React.MouseEvent, roomId: string) => {
+    e.stopPropagation()
+    if (typeof window !== 'undefined') {
+      const url = `${window.location.origin}/r/${roomId}`
+      navigator.clipboard.writeText(url)
+      setCopiedId(roomId)
+      setTimeout(() => setCopiedId(null), 2000)
+    }
+  }
+
+  const handleCloseRoom = async (e: React.MouseEvent, roomId: string) => {
+    e.stopPropagation()
+    try {
+      const res = await fetch(`/api/rooms/${roomId}/close`, { method: 'POST' })
+      if (res.ok) {
+        setRooms(prev => prev.map(r => r.id === roomId ? { ...r, status: 'closed' } : r))
+      }
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#f5f0e8] text-[#6b5c4e]">
+        <div className="text-center space-y-3">
+          <div className="w-10 h-10 border-3 border-[#c2674a] border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="font-medium text-sm">Opening your quiet corner…</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="app-shell">
+      {/* Sticky Sidebar */}
       <aside className="sidebar">
-        <Link href="/" aria-label="Openly home"><Logo /></Link>
+        <Link href="/" aria-label="Openly home">
+          <Logo />
+        </Link>
+        
         <nav className="side-nav" aria-label="Main navigation">
-          <button className="active" type="button"><span>⌂</span><b>Overview</b></button>
-          <button type="button" onClick={() => document.getElementById('rooms')?.scrollIntoView({ behavior: 'smooth' })}><span>◌</span><b>My rooms</b><i>{rooms.length}</i></button>
-          <button type="button" onClick={() => router.push('/settings')}><span>⚙</span><b>Settings</b></button>
+          <button className="active" type="button">
+            <span><House size={20} weight="fill" /></span>
+            <b>Overview</b>
+          </button>
+          <button 
+            type="button" 
+            onClick={() => document.getElementById('rooms')?.scrollIntoView({ behavior: 'smooth' })}
+          >
+            <span><GridFour size={20} /></span>
+            <b>My rooms</b>
+            <i>{rooms.length}</i>
+          </button>
+          <button type="button" onClick={() => router.push('/settings')}>
+            <span><GearSix size={20} /></span>
+            <b>Settings</b>
+          </button>
         </nav>
+
         <div className="sidebar-bottom">
-          <div className="privacy-mini"><span>✦</span><p><strong>Privacy first</strong><small>No names. No pressure.</small></p></div>
-          <div className="profile"><span className="avatar">{firstName.slice(0, 2).toUpperCase()}</span><p><strong>{firstName}</strong><small>Personal workspace</small></p><button className="dots" onClick={() => signOut()} aria-label="Sign out">···</button></div>
+          <div className="privacy-mini">
+            <span><Sparkle size={18} weight="fill" /></span>
+            <p>
+              <strong>Privacy first</strong>
+              <small>No names. No pressure.</small>
+            </p>
+          </div>
+          <div className="profile">
+            <span className="avatar">{firstName.slice(0, 2).toUpperCase()}</span>
+            <p>
+              <strong>{firstName}</strong>
+              <small>Personal workspace</small>
+            </p>
+            <button className="dots" onClick={() => signOut()} aria-label="Sign out">
+              ···
+            </button>
+          </div>
         </div>
       </aside>
 
+      {/* Main Content */}
       <div className="main">
-        <header className="topbar"><div><p className="eyebrow">Tuesday, August 24</p><h1>Good morning, {firstName}.</h1></div><div className="top-actions"><button className="icon-button notification" aria-label="Notifications">◔<i>2</i></button><button className="hamburger" aria-label="Open menu"><i /><i /></button></div></header>
+        <header className="topbar">
+          <div>
+            <p className="eyebrow">{currentDateFormatted}</p>
+            <h1 className="font-serif text-3xl font-medium">{getGreeting()}, {firstName}.</h1>
+          </div>
+          <div className="top-actions flex items-center gap-3">
+            <button className="p-2.5 bg-[#ede8dc] border border-[#ddd5c8] rounded-full text-heading hover:bg-[#ddd5c8] transition" aria-label="Notifications">
+              <Bell size={18} />
+            </button>
+            <Button onClick={() => router.push('/room/create')}>
+              <Plus size={16} weight="bold" />
+              <span>New room</span>
+            </Button>
+          </div>
+        </header>
+
         <main className="page-content">
-          <section className="dashboard-head"><div><p className="eyebrow">Your quiet corner</p><h2>Make room for the <em>real stuff.</em></h2><p>Honest feedback starts with a little breathing room.</p></div><div className="head-actions"><Button onClick={() => router.push('/room/create')}>+ New room</Button></div></section>
-
-          <section className="stats" aria-label="Workspace summary"><div><span className="eyebrow">Active rooms</span><b>{rooms.filter((room) => room.status === 'open').length}</b><small>Open right now</small></div><div><span className="eyebrow">Responses</span><b>{rooms.length ? rooms.length * 12 : 0}</b><small>Across your rooms</small></div><div><span className="eyebrow">Safety score</span><b>{safetyScore}</b><small>↑ 8 this cycle</small></div></section>
-
-          <section id="rooms" className="section-block"><div className="section-heading"><div><p className="eyebrow">Your rooms <span className="count-badge">{rooms.length}</span></p><h3>Spaces worth returning to</h3></div><div className="tabs" role="tablist"><button className={sort === 'recent' ? 'selected' : ''} onClick={() => setSort('recent')}>Recent</button><button className={sort === 'open' ? 'selected' : ''} onClick={() => setSort('open')}>Open first</button></div></div>
-            {sortedRooms.length === 0 ? <div className="empty-state"><span className="empty-mark">○</span><h3>Your first room is waiting.</h3><p>Give your team a place to say what they really mean.</p><Button onClick={() => router.push('/room/create')}>Create a room</Button></div> : <div className="bento">{sortedRooms.slice(0, 6).map((room, index) => <article key={room.id} className={`room-card ${index === 0 ? 'large' : ''}`} onClick={() => router.push(`/room/${room.id}/results`)}><div className="card-top"><Pill>{formatRoomType(room.type)}</Pill><span aria-hidden="true">↗</span></div><h3>{room.name}</h3><p>{room.description || 'A space for honest reflection.'}</p><div className="card-meta"><span className={room.status === 'open' ? 'status-open' : ''}>{room.status === 'open' ? 'Open for responses' : 'Closed'}</span><span>{room.closes_at ? `Closes ${new Date(room.closes_at).toLocaleDateString()}` : 'No closing date'}</span></div></article>)}</div>}
+          {/* Stats Bar */}
+          <section className="stats" aria-label="Workspace summary">
+            <div>
+              <span className="eyebrow">Active rooms</span>
+              <b>{rooms.filter((room) => room.status === 'open').length}</b>
+              <small>Open for responses right now</small>
+            </div>
+            <div>
+              <span className="eyebrow">Total Rooms</span>
+              <b>{rooms.length}</b>
+              <small>Created across workspace</small>
+            </div>
+            <div>
+              <span className="eyebrow">Safety score</span>
+              <b>{safetyScore}</b>
+              <small className="text-[#7c8c5e] font-semibold">↑ 8 this cycle</small>
+            </div>
           </section>
 
-          <section className="safety-strip"><div className="safety-icon">✦</div><div><p className="eyebrow">Your space is feeling open</p><h3>Psychological safety <strong>{safetyScore}</strong><span>/ 100</span></h3><p>{getScoreMessage(safetyScore)}</p></div><Button onClick={() => router.push('/room/create')}>Create new room →</Button></section>
+          {/* Safety score widget ALWAYS ABOVE rooms list */}
+          <section className="safety-strip">
+            <div className="safety-icon">
+              <Sparkle size={26} weight="fill" />
+            </div>
+            <div className="flex-1">
+              <p className="eyebrow text-[#7c8c5e]">Your space is feeling open</p>
+              <h3>
+                Psychological safety <strong>{safetyScore}</strong>
+                <span> / 100</span>
+              </h3>
+              <p>{getScoreMessage(safetyScore)}</p>
+            </div>
+            <Button onClick={() => router.push('/room/create')}>
+              Create new room →
+            </Button>
+          </section>
+
+          {/* Rooms List Section */}
+          <section id="rooms" className="section-block mt-8">
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">
+                  Your rooms <span className="count-badge">{rooms.length}</span>
+                </p>
+                <h3 className="font-serif">Spaces worth returning to</h3>
+              </div>
+              <div className="tabs" role="tablist">
+                <button 
+                  className={sort === 'recent' ? 'selected' : ''} 
+                  onClick={() => setSort('recent')}
+                >
+                  Recent
+                </button>
+                <button 
+                  className={sort === 'open' ? 'selected' : ''} 
+                  onClick={() => setSort('open')}
+                >
+                  Open first
+                </button>
+              </div>
+            </div>
+
+            {sortedRooms.length === 0 ? (
+              <div className="empty-state text-center py-16">
+                <div className="w-14 h-14 rounded-full bg-[#faf7f2] border border-[#ddd5c8] grid place-items-center mx-auto mb-4 text-[#c2674a]">
+                  <GridFour size={28} />
+                </div>
+                <h3 className="font-serif text-2xl">Your first room is waiting.</h3>
+                <p className="text-muted-foreground mt-2 max-w-md mx-auto">
+                  Give your team a place to say what they really mean without pressure or bias.
+                </p>
+                <div className="mt-6">
+                  <Button onClick={() => router.push('/room/create')}>
+                    Create a room
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="bento">
+                {sortedRooms.map((room) => (
+                  <article 
+                    key={room.id} 
+                    className="room-card group" 
+                    onClick={() => router.push(`/room/${room.id}/results`)}
+                  >
+                    <div className="card-top">
+                      <RoomTypeBadge type={room.type} />
+                      <span className="text-muted-foreground group-hover:text-heading group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition" aria-hidden="true">
+                        <ArrowUpRight size={18} />
+                      </span>
+                    </div>
+
+                    <div>
+                      <h3 className="font-serif text-xl font-medium">{room.name}</h3>
+                      <p>{room.description || 'A space for honest reflection and feedback.'}</p>
+                    </div>
+
+                    <div>
+                      {/* Status & Close date separated by " · " */}
+                      <div className="card-meta">
+                        <span className={room.status === 'open' ? 'status-open' : ''}>
+                          {room.status === 'open' ? 'Open for responses' : 'Closed'}
+                        </span>
+                        <span aria-hidden="true">·</span>
+                        <span>
+                          {room.closes_at 
+                            ? `Closes ${new Date(room.closes_at).toLocaleDateString()}` 
+                            : 'No closing date'}
+                        </span>
+                      </div>
+
+                      {/* Hover state reveals quick actions: Copy Link, View Results, Close Room */}
+                      <div className="card-actions-hover pt-2 flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={(e) => copyRoomLink(e, room.id)}
+                          className="px-2.5 py-1.5 bg-[#faf7f2] border border-[#ddd5c8] rounded-lg text-xs font-medium text-heading hover:bg-[#1c1917] hover:text-[#f5f0e8] transition flex items-center gap-1.5"
+                          title="Copy public responder link"
+                        >
+                          {copiedId === room.id ? (
+                            <>
+                              <Check size={13} className="text-[#7c8c5e]" />
+                              <span>Copied</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy size={13} />
+                              <span>Copy Link</span>
+                            </>
+                          )}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            router.push(`/room/${room.id}/results`)
+                          }}
+                          className="px-2.5 py-1.5 bg-[#faf7f2] border border-[#ddd5c8] rounded-lg text-xs font-medium text-heading hover:bg-[#1c1917] hover:text-[#f5f0e8] transition flex items-center gap-1.5"
+                        >
+                          <ChartBar size={13} />
+                          <span>Results</span>
+                        </button>
+
+                        {room.status === 'open' && (
+                          <button
+                            type="button"
+                            onClick={(e) => handleCloseRoom(e, room.id)}
+                            className="px-2.5 py-1.5 bg-[#faf7f2] border border-[#ddd5c8] rounded-lg text-xs font-medium text-[#c0392b] hover:bg-[#c0392b] hover:text-white transition flex items-center gap-1.5 ml-auto"
+                            title="Close room"
+                          >
+                            <XCircle size={13} />
+                            <span>Close</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
         </main>
       </div>
     </div>
