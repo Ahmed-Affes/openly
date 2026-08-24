@@ -4,9 +4,10 @@ import { Room } from '@/types'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await context.params
     const supabase = await createClient()
     
     const { data, error } = await supabase
@@ -15,7 +16,7 @@ export async function GET(
         *,
         questions (*)
       `)
-      .eq('id', params.id)
+      .eq('id', id)
       .single()
 
     if (error) throw error
@@ -31,9 +32,10 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await context.params
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     
@@ -50,7 +52,7 @@ export async function PATCH(
         ...updates,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', params.id)
+      .eq('id', id)
       .eq('creator_id', user.id)
       .select()
       .single()
@@ -65,9 +67,10 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await context.params
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     
@@ -78,7 +81,7 @@ export async function DELETE(
     const { error } = await supabase
       .from('rooms')
       .delete()
-      .eq('id', params.id)
+      .eq('id', id)
       .eq('creator_id', user.id)
 
     if (error) throw error

@@ -1,6 +1,7 @@
 import { Resend } from 'resend'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+const resendApiKey = process.env.RESEND_API_KEY
+const resend = resendApiKey ? new Resend(resendApiKey) : null
 
 export async function sendRoomInvitationEmail(
   email: string,
@@ -8,6 +9,11 @@ export async function sendRoomInvitationEmail(
   roomLink: string,
   creatorName: string
 ) {
+  if (!resend) {
+    console.log(`[Email Mock] Invitation to ${email} for "${roomName}" (${roomLink})`)
+    return { success: true, mocked: true }
+  }
+
   try {
     await resend.emails.send({
       from: 'Openly <noreply@openly.app>',
@@ -54,6 +60,11 @@ export async function sendThreadReplyEmail(
   threadMessage: string,
   roomLink: string
 ) {
+  if (!resend) {
+    console.log(`[Email Mock] Thread reply to ${creatorEmail} for "${roomName}": ${threadMessage}`)
+    return { success: true, mocked: true }
+  }
+
   try {
     await resend.emails.send({
       from: 'Openly <noreply@openly.app>',

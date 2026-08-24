@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Room } from '@/types'
 import { calculateSafetyScore, getScoreColor, getScoreMessage } from '@/lib/utils/score'
@@ -65,9 +66,19 @@ export default function DashboardPage() {
       {/* Header */}
       <header className="bg-white border-b border-[#E5E5E5] px-6 py-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <Logo />
-          <div className="flex items-center gap-4">
-            <span className="text-[#6B6B6B]">{user?.user_metadata?.name || 'User'}</span>
+          <Link href="/" className="flex items-center">
+            <Logo />
+          </Link>
+          <div className="flex items-center gap-5">
+            <Link href="/room/create" className="text-sm font-medium text-[#2D2D2D] hover:text-[#8B7355] transition-colors">
+              + New Room
+            </Link>
+            <Link href="/settings" className="text-sm font-medium text-[#6B6B6B] hover:text-[#2D2D2D] transition-colors">
+              Settings
+            </Link>
+            <span className="text-xs bg-[#FAF8F5] px-3 py-1.5 rounded-full border border-[#E5E5E5] text-[#2D2D2D]">
+              {user?.user_metadata?.name || user?.email?.split('@')[0] || 'User'}
+            </span>
             <button onClick={handleSignOut} className="text-sm text-[#8B7355] hover:underline">
               Sign out
             </button>

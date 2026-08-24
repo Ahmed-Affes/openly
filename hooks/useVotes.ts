@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Vote, VoteType } from '@/types'
 import { getDeviceHash } from '@/lib/utils/fingerprint'
@@ -10,7 +10,7 @@ export function useVotes() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const fetchVotesForRoom = async (roomId: string): Promise<Vote[]> => {
+  const fetchVotesForRoom = useCallback(async (roomId: string): Promise<Vote[]> => {
     setLoading(true)
     setError(null)
     
@@ -37,9 +37,9 @@ export function useVotes() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [supabase])
 
-  const fetchVotesForSubmission = async (submissionId: string): Promise<Vote[]> => {
+  const fetchVotesForSubmission = useCallback(async (submissionId: string): Promise<Vote[]> => {
     setLoading(true)
     setError(null)
     
@@ -63,9 +63,9 @@ export function useVotes() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [supabase])
 
-  const checkDeviceVoted = async (submissionId: string): Promise<boolean> => {
+  const checkDeviceVoted = useCallback(async (submissionId: string): Promise<boolean> => {
     const deviceHash = getDeviceHash()
     
     try {
@@ -86,9 +86,9 @@ export function useVotes() {
       console.error('Error checking vote:', err)
       return false
     }
-  }
+  }, [supabase])
 
-  const submitVote = async (
+  const submitVote = useCallback(async (
     submissionId: string,
     roomId: string,
     voteType: VoteType
@@ -128,9 +128,9 @@ export function useVotes() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [supabase, checkDeviceVoted])
 
-  const getVoteCounts = async (submissionId: string): Promise<Record<VoteType, number>> => {
+  const getVoteCounts = useCallback(async (submissionId: string): Promise<Record<VoteType, number>> => {
     try {
       const { data, error } = await supabase
         .from('votes')
@@ -165,7 +165,7 @@ export function useVotes() {
         unsure: 0,
       }
     }
-  }
+  }, [supabase])
 
   return {
     loading,

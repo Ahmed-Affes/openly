@@ -87,6 +87,19 @@ export default function ResultsPage() {
     }
   }, [params.id, supabase, refetchSubmissions, refetchThreads])
 
+  const [replyText, setReplyText] = useState('')
+  const [sendingReply, setSendingReply] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  const copyRoomLink = () => {
+    if (typeof window !== 'undefined') {
+      const url = `${window.location.origin}/r/${params.id}`
+      navigator.clipboard.writeText(url)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
   const closeRoom = async () => {
     try {
       const response = await fetch(`/api/rooms/${params.id}/close`, {
@@ -98,6 +111,54 @@ export default function ResultsPage() {
       }
     } catch (err) {
       console.error('Failed to close room:', err)
+    }
+  }
+
+  const handleSendReply = async () => {
+    if (!selectedThread || !replyText.trim()) return
+    setSendingReply(true)
+    try {
+      const response = await fetch(`/api/threads/${selectedThread.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sender: 'creator',
+          text: replyText.trim(),
+        }),
+      })
+
+      if (response.ok) {
+        const newMessage = await response.json()
+        setSelectedThread(prev => prev ? {
+          ...prev,
+          messages: [...(prev.messages || []), newMessage]
+        } : null)
+        setReplyText('')
+        refetchThreads()
+      }
+    } catch (err) {
+      console.error('Failed to send reply:', err)
+    } finally {
+      setSendingReply(false)
+    }
+  }
+
+  const handleToggleResolve = async (threadId: string, currentResolved: boolean) => {
+    try {
+      const response = await fetch(`/api/threads/${threadId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_resolved: !currentResolved }),
+      })
+
+      if (response.ok) {
+        refetchThreads()
+        if (selectedThread && selectedThread.id === threadId) {
+          setSelectedThread(prev => prev ? { ...prev, is_resolved: !currentResolved } : null)
+        }
+      }
+    } catch (err) {
+      console.error('Failed to toggle resolve:', err)
     }
   }
 
@@ -128,20 +189,26 @@ export default function ResultsPage() {
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <button
             onClick={() => router.push('/dashboard')}
-            className="text-[#6B6B6B] hover:text-[#2D2D2D]"
+            className="text-[#6B6B6B] hover:text-[#2D2D2D] text-sm"
           >
             ← Back to dashboard
           </button>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={copyRoomLink}
+              className="px-3 py-1.5 text-sm border border-[#E5E5E5] bg-white rounded-lg hover:border-[#8B7355] text-[#2D2D2D] transition-colors"
+            >
+              {copied ? '✓ Link Copied' : '🔗 Copy Room Link'}
+            </button>
             {room.status === 'open' && (
               <button
                 onClick={closeRoom}
-                className="px-4 py-2 text-sm text-[#6B6B6B] hover:text-[#2D2D2D] border border-[#E5E5E5] rounded-lg hover:border-[#8B7355]"
+                className="px-3 py-1.5 text-sm text-[#6B6B6B] hover:text-[#2D2D2D] border border-[#E5E5E5] rounded-lg hover:border-[#8B7355] transition-colors"
               >
                 Close room
               </button>
             )}
-            <span className={`px-3 py-1 rounded-full text-sm ${
+            <span className={`px-3 py-1 rounded-full text-xs font-medium ${
               room.status === 'open' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
             }`}>
               {room.status}
@@ -215,15 +282,17 @@ export default function ResultsPage() {
               <div className="space-y-3">
                 <div>
                   <span className="text-sm text-[#6B6B6B]">Type</span>
-                  <p className="text-[#2D2D2D]"><Pill>{room.type}</Pill></p>
+                  <div className="mt-1"><Pill>{room.type}</Pill></div>
                 </div>
                 <div>
                   <span className="text-sm text-[#6B6B6B]">Description</span>
                   <p className="text-[#2D2D2D]">{room.description || 'No description'}</p>
                 </div>
                 <div>
-                  <span className="text-sm text-[#6B6B6B]">Created</span>
-                  <p className="text-[#2D2D2D]">{new Date(room.created_at).toLocaleDateString()}</p>
+                  <span className="text-sm text-[#6B6B6B]">Public Response Link</span>
+                  <p className="text-[#8B7355] text-sm break-all font-mono mt-1">
+                    {typeof window !== 'undefined' ? `${window.location.origin}/r/${room.id}` : `/r/${room.id}`}
+                  </p>
                 </div>
               </div>
             </div>
@@ -232,7 +301,7 @@ export default function ResultsPage() {
               <h3 className="text-lg font-serif text-[#2D2D2D] mb-4">Questions</h3>
               <div className="space-y-4">
                 {room.questions.map((q: any, i: number) => (
-                  <div key={q.id} className="p-4 bg-[#FAF8F5] rounded-lg">
+                  <div key={q.id || i} className="p-4 bg-[#FAF8F5] rounded-lg">
                     <span className="text-sm text-[#8B7355]">Question {i + 1}</span>
                     <p className="text-[#2D2D2D] mt-1">{q.text}</p>
                   </div>
@@ -248,6 +317,12 @@ export default function ResultsPage() {
               <div className="bg-white rounded-lg border border-[#E5E5E5] p-12 text-center">
                 <p className="text-[#6B6B6B]">No submissions yet</p>
                 <p className="text-sm text-[#6B6B6B] mt-2">Share the room link to start collecting responses</p>
+                <button
+                  onClick={copyRoomLink}
+                  className="mt-4 bg-[#2D2D2D] text-white px-4 py-2 rounded-lg text-sm"
+                >
+                  {copied ? '✓ Link Copied' : 'Copy Room Link'}
+                </button>
               </div>
             ) : (
               submissions.map((submission: any) => (
@@ -259,10 +334,10 @@ export default function ResultsPage() {
                     </span>
                   </div>
                   <div className="space-y-4">
-                    {submission.answers.map((answer: any) => (
+                    {submission.answers?.map((answer: any) => (
                       <div key={answer.id} className="p-4 bg-[#FAF8F5] rounded-lg">
                         {answer.text && <p className="text-[#2D2D2D]">{answer.text}</p>}
-                        {answer.reaction_level && (
+                        {answer.reaction_level !== null && answer.reaction_level !== undefined && (
                           <div className="mt-2">
                             <span className="text-sm text-[#6B6B6B]">Reaction: </span>
                             <span className="text-[#2D2D2D]">{answer.reaction_level}/100</span>
@@ -288,6 +363,7 @@ export default function ResultsPage() {
             {threads.length === 0 ? (
               <div className="bg-white rounded-lg border border-[#E5E5E5] p-12 text-center">
                 <p className="text-[#6B6B6B]">No threads yet</p>
+                <p className="text-sm text-[#6B6B6B] mt-1">Threads allow creators and anonymous responders to converse safely.</p>
               </div>
             ) : (
               threads.map((thread: any) => (
@@ -322,15 +398,15 @@ export default function ResultsPage() {
             <div className="space-y-4">
               <button
                 onClick={() => router.push(`/room/${room.id}`)}
-                className="w-full text-left px-4 py-3 hover:bg-[#FAF8F5] rounded-lg transition-colors"
+                className="w-full text-left px-4 py-3 hover:bg-[#FAF8F5] rounded-lg transition-colors border border-[#E5E5E5]"
               >
-                <strong className="text-[#2D2D2D]">Edit room</strong>
-                <p className="text-sm text-[#6B6B6B]">Change name, description, or questions</p>
+                <strong className="text-[#2D2D2D]">Room details</strong>
+                <p className="text-sm text-[#6B6B6B]">View questions and configuration</p>
               </button>
               <button
                 onClick={closeRoom}
                 disabled={room.status === 'closed'}
-                className="w-full text-left px-4 py-3 hover:bg-[#FAF8F5] rounded-lg transition-colors disabled:opacity-50"
+                className="w-full text-left px-4 py-3 hover:bg-[#FAF8F5] rounded-lg transition-colors border border-[#E5E5E5] disabled:opacity-50"
               >
                 <strong className="text-[#2D2D2D]">Close room</strong>
                 <p className="text-sm text-[#6B6B6B]">
@@ -342,60 +418,89 @@ export default function ResultsPage() {
         )}
       </main>
 
-      {/* Thread Panel */}
+      {/* Thread Panel Modal */}
       {selectedThread && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-lg w-full max-h-[80vh] overflow-hidden">
+          <div className="bg-white rounded-lg max-w-lg w-full max-h-[85vh] flex flex-col overflow-hidden shadow-2xl">
             <div className="p-6 border-b border-[#E5E5E5] flex items-center justify-between">
               <div>
                 <p className="eyebrow text-[#8B7355]">Anonymous thread</p>
                 <h3 className="text-lg font-serif text-[#2D2D2D]">
-                  {selectedThread.messages?.length || 0} replies
+                  {selectedThread.messages?.length || 0} messages
                 </h3>
               </div>
-              <button
-                onClick={() => setSelectedThread(null)}
-                className="text-2xl text-[#6B6B6B] hover:text-[#2D2D2D]"
-              >
-                ×
-              </button>
-            </div>
-            <div className="p-6 overflow-y-auto max-h-[60vh]">
-              {selectedThread.messages?.map((message: any) => (
-                <div
-                  key={message.id}
-                  className={`mb-4 ${
-                    message.sender === 'creator' ? 'ml-8' : 'mr-8'
-                  }`}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleToggleResolve(selectedThread.id, selectedThread.is_resolved)}
+                  className="text-xs px-2.5 py-1 rounded border border-[#E5E5E5] hover:border-[#8B7355] text-[#6B6B6B]"
                 >
-                  <div className="flex items-start gap-3">
-                    <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${
-                      message.sender === 'creator' ? 'bg-[#8B7355] text-white' : 'bg-[#E5E5E5] text-[#6B6B6B]'
-                    }`}>
-                      {message.sender === 'creator' ? 'You' : 'AN'}
-                    </span>
-                    <div className="flex-1">
-                      <p className="text-[#2D2D2D]">{message.text}</p>
-                      <small className="text-[#6B6B6B]">
-                        {new Date(message.created_at).toLocaleString()}
-                      </small>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="p-6 border-t border-[#E5E5E5]">
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Reply with care..."
-                  className="flex-1 px-4 py-2 border border-[#E5E5E5] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8B7355]"
-                />
-                <button className="px-4 py-2 bg-[#2D2D2D] text-white rounded-lg hover:bg-[#3D3D3D]">
-                  Send
+                  {selectedThread.is_resolved ? 'Reopen' : 'Mark Resolved'}
+                </button>
+                <button
+                  onClick={() => setSelectedThread(null)}
+                  className="text-2xl text-[#6B6B6B] hover:text-[#2D2D2D]"
+                >
+                  ×
                 </button>
               </div>
             </div>
+            
+            <div className="p-6 overflow-y-auto flex-1 max-h-[50vh] space-y-4">
+              {(!selectedThread.messages || selectedThread.messages.length === 0) ? (
+                <p className="text-[#6B6B6B] text-sm text-center py-6">No messages in this thread yet</p>
+              ) : (
+                selectedThread.messages.map((message: any) => (
+                  <div
+                    key={message.id}
+                    className={`flex items-start gap-3 ${
+                      message.sender === 'creator' ? 'justify-end' : 'justify-start'
+                    }`}
+                  >
+                    {message.sender !== 'creator' && (
+                      <span className="w-8 h-8 rounded-full bg-[#E5E5E5] text-[#6B6B6B] flex items-center justify-center text-xs shrink-0 font-medium">
+                        AN
+                      </span>
+                    )}
+                    <div className={`p-3 rounded-lg max-w-[80%] ${
+                      message.sender === 'creator' ? 'bg-[#8B7355] text-white' : 'bg-[#FAF8F5] text-[#2D2D2D]'
+                    }`}>
+                      <p className="text-sm">{message.text}</p>
+                      <small className={`block text-[10px] mt-1 ${message.sender === 'creator' ? 'text-white/70' : 'text-[#9CA3AF]'}`}>
+                        {message.created_at ? new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                      </small>
+                    </div>
+                    {message.sender === 'creator' && (
+                      <span className="w-8 h-8 rounded-full bg-[#8B7355] text-white flex items-center justify-center text-xs shrink-0 font-medium">
+                        You
+                      </span>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault()
+                handleSendReply()
+              }}
+              className="p-4 border-t border-[#E5E5E5] bg-white flex gap-2"
+            >
+              <input
+                type="text"
+                value={replyText}
+                onChange={(e) => setReplyText(e.target.value)}
+                placeholder="Reply with care..."
+                className="flex-1 px-4 py-2 border border-[#E5E5E5] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8B7355] text-sm"
+              />
+              <button
+                type="submit"
+                disabled={sendingReply || !replyText.trim()}
+                className="px-4 py-2 bg-[#2D2D2D] text-white rounded-lg text-sm hover:bg-[#3D3D3D] disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {sendingReply ? 'Sending...' : 'Send'}
+              </button>
+            </form>
           </div>
         </div>
       )}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Submission, Answer, SubmissionWithAnswers } from '@/types'
 import { getDeviceHash, hasSubmitted, markAsSubmitted } from '@/lib/utils/fingerprint'
@@ -11,7 +11,7 @@ export function useSubmissions() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const fetchSubmissionsForRoom = async (roomId: string, shuffle = true): Promise<SubmissionWithAnswers[]> => {
+  const fetchSubmissionsForRoom = useCallback(async (roomId: string, shuffle = true): Promise<SubmissionWithAnswers[]> => {
     setLoading(true)
     setError(null)
     
@@ -45,9 +45,9 @@ export function useSubmissions() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [supabase])
 
-  const getSubmissionCount = async (roomId: string): Promise<number> => {
+  const getSubmissionCount = useCallback(async (roomId: string): Promise<number> => {
     try {
       const { count, error } = await supabase
         .from('submissions')
@@ -60,9 +60,9 @@ export function useSubmissions() {
       console.error('Error getting submission count:', err)
       return 0
     }
-  }
+  }, [supabase])
 
-  const checkDeviceSubmitted = async (roomId: string): Promise<boolean> => {
+  const checkDeviceSubmitted = useCallback(async (roomId: string): Promise<boolean> => {
     const deviceHash = getDeviceHash()
     
     // Check localStorage first (client-side)
@@ -95,9 +95,9 @@ export function useSubmissions() {
       console.error('Error checking submission:', err)
       return false
     }
-  }
+  }, [supabase])
 
-  const createSubmission = async (
+  const createSubmission = useCallback(async (
     roomId: string,
     answers: Omit<Answer, 'id' | 'created_at'>[]
   ): Promise<Submission | null> => {
@@ -147,7 +147,7 @@ export function useSubmissions() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [supabase, checkDeviceSubmitted])
 
   return {
     loading,

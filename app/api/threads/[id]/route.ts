@@ -3,9 +3,10 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await context.params
     const supabase = await createClient()
     
     const { data, error } = await supabase
@@ -14,7 +15,7 @@ export async function GET(
         *,
         thread_messages (*)
       `)
-      .eq('id', params.id)
+      .eq('id', id)
       .single()
 
     if (error) throw error
@@ -27,9 +28,10 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await context.params
     const supabase = await createClient()
     const body = await request.json()
     const { sender, text } = body as {
@@ -40,7 +42,7 @@ export async function POST(
     const { data, error } = await supabase
       .from('thread_messages')
       .insert({
-        thread_id: params.id,
+        thread_id: id,
         sender,
         text,
       })
@@ -57,9 +59,10 @@ export async function POST(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await context.params
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     
@@ -79,7 +82,7 @@ export async function PATCH(
         ...(is_resolved !== undefined && { is_resolved }),
         ...(is_pinned !== undefined && { is_pinned }),
       })
-      .eq('id', params.id)
+      .eq('id', id)
       .select()
       .single()
 

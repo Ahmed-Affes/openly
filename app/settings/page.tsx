@@ -57,6 +57,14 @@ export default function SettingsPage() {
   return (
     <div className="min-h-screen bg-[#FAF8F5] px-4 py-8">
       <div className="max-w-2xl mx-auto">
+        <div className="mb-6">
+          <button
+            onClick={() => router.push('/dashboard')}
+            className="text-sm text-[#6B6B6B] hover:text-[#2D2D2D] transition-colors"
+          >
+            ← Back to dashboard
+          </button>
+        </div>
         <div className="mb-8">
           <p className="eyebrow text-[#8B7355]">Your space</p>
           <h1 className="text-3xl font-serif text-[#2D2D2D] mt-2 mb-2">

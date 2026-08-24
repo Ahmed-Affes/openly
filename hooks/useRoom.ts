@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Room, RoomWithQuestions, Question } from '@/types'
 
@@ -9,7 +9,7 @@ export function useRoom() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const fetchRoom = async (roomId: string): Promise<Room | null> => {
+  const fetchRoom = useCallback(async (roomId: string): Promise<Room | null> => {
     setLoading(true)
     setError(null)
     
@@ -28,9 +28,9 @@ export function useRoom() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [supabase])
 
-  const fetchRoomWithQuestions = async (roomId: string): Promise<RoomWithQuestions | null> => {
+  const fetchRoomWithQuestions = useCallback(async (roomId: string): Promise<RoomWithQuestions | null> => {
     setLoading(true)
     setError(null)
     
@@ -52,9 +52,9 @@ export function useRoom() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [supabase])
 
-  const fetchCreatorRooms = async (creatorId: string): Promise<Room[]> => {
+  const fetchCreatorRooms = useCallback(async (creatorId: string): Promise<Room[]> => {
     setLoading(true)
     setError(null)
     
@@ -73,9 +73,9 @@ export function useRoom() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [supabase])
 
-  const createRoom = async (room: Partial<Room>, questions: Omit<Question, 'id' | 'created_at'>[]): Promise<RoomWithQuestions | null> => {
+  const createRoom = useCallback(async (room: Partial<Room>, questions: Omit<Question, 'id' | 'created_at'>[]): Promise<RoomWithQuestions | null> => {
     setLoading(true)
     setError(null)
     
@@ -121,9 +121,9 @@ export function useRoom() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [supabase])
 
-  const updateRoom = async (roomId: string, updates: Partial<Room>): Promise<Room | null> => {
+  const updateRoom = useCallback(async (roomId: string, updates: Partial<Room>): Promise<Room | null> => {
     setLoading(true)
     setError(null)
     
@@ -146,13 +146,13 @@ export function useRoom() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [supabase])
 
-  const closeRoom = async (roomId: string): Promise<Room | null> => {
+  const closeRoom = useCallback(async (roomId: string): Promise<Room | null> => {
     return updateRoom(roomId, { status: 'closed' })
-  }
+  }, [updateRoom])
 
-  const deleteRoom = async (roomId: string): Promise<boolean> => {
+  const deleteRoom = useCallback(async (roomId: string): Promise<boolean> => {
     setLoading(true)
     setError(null)
     
@@ -170,7 +170,7 @@ export function useRoom() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [supabase])
 
   return {
     loading,

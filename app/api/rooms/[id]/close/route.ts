@@ -3,9 +3,10 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await context.params
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     
@@ -16,7 +17,7 @@ export async function POST(
     const { data, error } = await supabase
       .from('rooms')
       .update({ status: 'closed' })
-      .eq('id', params.id)
+      .eq('id', id)
       .eq('creator_id', user.id)
       .select()
       .single()

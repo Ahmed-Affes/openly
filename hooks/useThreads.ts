@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Thread, ThreadMessage } from '@/types'
 
@@ -9,7 +9,7 @@ export function useThreads() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const fetchThreadsForRoom = async (roomId: string): Promise<Thread[]> => {
+  const fetchThreadsForRoom = useCallback(async (roomId: string): Promise<Thread[]> => {
     setLoading(true)
     setError(null)
     
@@ -31,9 +31,9 @@ export function useThreads() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [supabase])
 
-  const fetchThread = async (threadId: string): Promise<Thread | null> => {
+  const fetchThread = useCallback(async (threadId: string): Promise<Thread | null> => {
     setLoading(true)
     setError(null)
     
@@ -55,9 +55,9 @@ export function useThreads() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [supabase])
 
-  const createThread = async (
+  const createThread = useCallback(async (
     submissionId: string,
     roomId: string
   ): Promise<Thread | null> => {
@@ -82,9 +82,9 @@ export function useThreads() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [supabase])
 
-  const addMessage = async (
+  const addMessage = useCallback(async (
     threadId: string,
     sender: 'creator' | 'responder',
     text: string
@@ -111,9 +111,9 @@ export function useThreads() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [supabase])
 
-  const resolveThread = async (threadId: string, resolved: boolean): Promise<Thread | null> => {
+  const resolveThread = useCallback(async (threadId: string, resolved: boolean): Promise<Thread | null> => {
     setLoading(true)
     setError(null)
     
@@ -133,9 +133,9 @@ export function useThreads() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [supabase])
 
-  const pinThread = async (threadId: string, pinned: boolean): Promise<Thread | null> => {
+  const pinThread = useCallback(async (threadId: string, pinned: boolean): Promise<Thread | null> => {
     setLoading(true)
     setError(null)
     
@@ -155,7 +155,7 @@ export function useThreads() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [supabase])
 
   return {
     loading,

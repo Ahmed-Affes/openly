@@ -3,9 +3,10 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { roomId: string } }
+  context: { params: Promise<{ roomId: string }> }
 ) {
   try {
+    const { roomId } = await context.params
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     
@@ -17,7 +18,7 @@ export async function GET(
     const { data: room } = await supabase
       .from('rooms')
       .select('creator_id')
-      .eq('id', params.roomId)
+      .eq('id', roomId)
       .single()
 
     if (!room || room.creator_id !== user.id) {
@@ -30,7 +31,7 @@ export async function GET(
         *,
         answers (*)
       `)
-      .eq('room_id', params.roomId)
+      .eq('room_id', roomId)
 
     if (error) throw error
 
