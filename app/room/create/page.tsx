@@ -173,15 +173,19 @@ export default function CreateRoomPage() {
             </div>
             <div>
               <label htmlFor="closesAt" className="block text-sm font-medium text-[#2D2D2D] mb-2">
-                Close date (optional)
+                Automatic Close date <span className="text-[#6B6B6B] font-normal">(optional)</span>
               </label>
               <input
                 id="closesAt"
                 type="datetime-local"
                 value={closesAt}
+                min={typeof window !== 'undefined' ? new Date().toISOString().slice(0, 16) : undefined}
                 onChange={(e) => setClosesAt(e.target.value)}
                 className="w-full px-4 py-3 border border-[#E5E5E5] rounded-lg bg-white text-[#2D2D2D] placeholder-[#9CA3AF] focus:outline-none focus:ring-2 focus:ring-[#8B7355] focus:border-transparent"
               />
+              <p className="text-xs text-[#6B6B6B] mt-1">
+                Leave blank if you don't want the room to expire automatically.
+              </p>
             </div>
           </div>
 

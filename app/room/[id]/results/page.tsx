@@ -114,6 +114,23 @@ export default function ResultsPage() {
     }
   }
 
+  const reopenRoom = async () => {
+    try {
+      const response = await fetch(`/api/rooms/${params.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'open', closes_at: null }),
+      })
+
+      if (response.ok) {
+        const updated = await response.json()
+        setRoom(prev => prev ? { ...prev, status: 'open', closes_at: null } : null)
+      }
+    } catch (err) {
+      console.error('Failed to reopen room:', err)
+    }
+  }
+
   const handleSendReply = async () => {
     if (!selectedThread || !replyText.trim()) return
     setSendingReply(true)
@@ -200,18 +217,31 @@ export default function ResultsPage() {
             >
               {copied ? '✓ Link Copied' : '🔗 Copy Room Link'}
             </button>
-            {room.status === 'open' && (
+            <button
+              onClick={() => router.push(`/room/${params.id}`)}
+              className="px-3 py-1.5 text-sm text-[#6B6B6B] hover:text-[#2D2D2D] border border-[#E5E5E5] bg-white rounded-lg hover:border-[#8B7355] transition-colors"
+            >
+              ⚙️ Settings
+            </button>
+            {room.status === 'open' ? (
               <button
                 onClick={closeRoom}
-                className="px-3 py-1.5 text-sm text-[#6B6B6B] hover:text-[#2D2D2D] border border-[#E5E5E5] rounded-lg hover:border-[#8B7355] transition-colors"
+                className="px-3 py-1.5 text-sm text-red-600 hover:text-red-700 border border-red-200 bg-red-50/50 rounded-lg hover:bg-red-50 transition-colors"
               >
                 Close room
+              </button>
+            ) : (
+              <button
+                onClick={reopenRoom}
+                className="px-3 py-1.5 text-sm text-emerald-700 hover:text-emerald-800 border border-emerald-300 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors font-medium"
+              >
+                Reopen room
               </button>
             )}
             <span className={`px-3 py-1 rounded-full text-xs font-medium ${
               room.status === 'open' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
             }`}>
-              {room.status}
+              {room.status === 'open' ? '● Open' : '○ Closed'}
             </span>
           </div>
         </div>

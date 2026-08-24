@@ -16,6 +16,7 @@ export default function RoomDetailsPage() {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [status, setStatus] = useState<'open' | 'closed' | 'scheduled'>('open')
+  const [closesAt, setClosesAt] = useState('')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
@@ -36,6 +37,11 @@ export default function RoomDetailsPage() {
         setName(data.name)
         setDescription(data.description || '')
         setStatus(data.status)
+        if (data.closes_at) {
+          try {
+            setClosesAt(new Date(data.closes_at).toISOString().slice(0, 16))
+          } catch {}
+        }
       } catch (err: any) {
         setError(err.message || 'Failed to load room')
       } finally {
@@ -60,6 +66,7 @@ export default function RoomDetailsPage() {
           name,
           description,
           status,
+          closes_at: closesAt ? new Date(closesAt).toISOString() : null,
         }),
       })
 
@@ -162,6 +169,21 @@ export default function RoomDetailsPage() {
                 <option value="closed">Closed</option>
                 <option value="scheduled">Scheduled</option>
               </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-[#2D2D2D] mb-1">
+                Automatic Close Date <span className="text-[#6B6B6B] font-normal">(Optional)</span>
+              </label>
+              <input
+                type="datetime-local"
+                value={closesAt}
+                onChange={(e) => setClosesAt(e.target.value)}
+                className="w-full px-4 py-2.5 border border-[#E5E5E5] rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#8B7355]"
+              />
+              <p className="text-xs text-[#6B6B6B] mt-1">
+                Leave empty or clear this field so the room never expires automatically.
+              </p>
             </div>
 
             <div className="pt-4 border-t border-[#E5E5E5]">

@@ -28,15 +28,22 @@ export default function ResponderPage() {
     async function loadRoom() {
       try {
         const roomId = params.id as string
+        if (!roomId) {
+          setError('Invalid room link')
+          setLoading(false)
+          return
+        }
         
-        // Check if already submitted
+        // Check if already submitted on this device
         if (hasSubmitted(roomId)) {
           setAlreadySubmitted(true)
           setLoading(false)
           return
         }
 
-        const { data, error } = await supabase
+        // Try fetching room details
+        let roomData: any = null
+        const { data, error: supaError } = await supabase
           .from('rooms')
           .select(`
             *,
@@ -45,15 +52,39 @@ export default function ResponderPage() {
           .eq('id', roomId)
           .single()
 
-        if (error) throw error
+        if (data) {
+          roomData = data
+        } else {
+          // Fallback to internal API route
+          const apiRes = await fetch(`/api/rooms/${roomId}`)
+          if (apiRes.ok) {
+            roomData = await apiRes.json()
+          } else {
+            throw new Error('Room not found or no longer available')
+          }
+        }
+
+        if (!roomData) {
+          throw new Error('Room not found')
+        }
+
+        // Sort questions by order_index
+        if (roomData.questions && Array.isArray(roomData.questions)) {
+          roomData.questions.sort((a: any, b: any) => (a.order_index ?? 0) - (b.order_index ?? 0))
+        }
 
         // Check if room is open
-        if (data.status !== 'open') {
-          setError('This room is closed')
-        } else if (data.closes_at && new Date(data.closes_at) < new Date()) {
-          setError('This room has closed')
+        if (roomData.status && roomData.status !== 'open') {
+          setError('This room has been closed by its creator.')
+        } else if (roomData.closes_at) {
+          const closeTime = new Date(roomData.closes_at).getTime()
+          if (!isNaN(closeTime) && closeTime < Date.now()) {
+            setError('This room reached its scheduled deadline and has closed.')
+          } else {
+            setRoom(roomData)
+          }
         } else {
-          setRoom(data)
+          setRoom(roomData)
         }
       } catch (err: any) {
         setError(err.message || 'Room not found')
@@ -128,21 +159,32 @@ export default function ResponderPage() {
   if (error || alreadySubmitted) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#FAF8F5] px-4">
-        <div className="max-w-md text-center">
-          <h1 className="text-2xl font-serif text-[#2D2D2D] mb-4">
-            {alreadySubmitted ? 'Already submitted' : 'Room not available'}
+        <div className="max-w-md w-full bg-white border border-[#E5E5E5] rounded-2xl p-8 text-center shadow-sm">
+          <div className="w-12 h-12 rounded-full bg-[#8B7355]/10 text-[#8B7355] flex items-center justify-center mx-auto mb-4 text-xl">
+            {alreadySubmitted ? '✓' : '✦'}
+          </div>
+          <h1 className="text-2xl font-serif text-[#2D2D2D] mb-3">
+            {alreadySubmitted ? 'Already Submitted' : 'Room Unavailable'}
           </h1>
-          <p className="text-[#6B6B6B] mb-6">
+          <p className="text-[#6B6B6B] text-sm mb-6 leading-relaxed">
             {alreadySubmitted 
-              ? 'You have already submitted to this room.' 
-              : error || 'This room could not be found or is not currently open.'}
+              ? 'You have already shared your anonymous feedback for this room on this device.' 
+              : error || 'This room is not currently accepting submissions.'}
           </p>
-          <button
-            onClick={() => router.push('/dashboard')}
-            className="bg-[#2D2D2D] text-white py-3 px-6 rounded-lg font-medium hover:bg-[#3D3D3D] transition-colors"
-          >
-            Go to dashboard
-          </button>
+          <div className="flex flex-col gap-2">
+            <button
+              onClick={() => router.push('/')}
+              className="w-full bg-[#2D2D2D] text-white py-3 px-6 rounded-xl font-medium hover:bg-[#3D3D3D] transition-colors text-sm"
+            >
+              Openly Home
+            </button>
+            <button
+              onClick={() => window.location.reload()}
+              className="w-full border border-[#E5E5E5] text-[#6B6B6B] py-2.5 px-6 rounded-xl font-medium hover:text-[#2D2D2D] transition-colors text-xs"
+            >
+              Check Again / Refresh
+            </button>
+          </div>
         </div>
       </div>
     )
