@@ -21,7 +21,10 @@ import {
   Plus,
   Check,
   Bell,
-  SignOut
+  SignOut,
+  Trash,
+  PencilSimple,
+  ArrowClockwise
 } from '@phosphor-icons/react'
 
 export default function DashboardPage() {
@@ -76,7 +79,7 @@ export default function DashboardPage() {
               allAnswers,
               allThreads,
               [],
-              allSubmissions.length * 2, // estimated audience
+              allSubmissions.length * 2,
               roomData.some(r => r.is_recurring)
             )
             setSafetyMetrics({
@@ -144,6 +147,42 @@ export default function DashboardPage() {
     }
   }
 
+  const handleReopenRoom = async (e: React.MouseEvent, roomId: string) => {
+    e.stopPropagation()
+    try {
+      const res = await fetch(`/api/rooms/${roomId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'open', closes_at: null }),
+      })
+      if (res.ok) {
+        setRooms(prev => prev.map(r => r.id === roomId ? { ...r, status: 'open', closes_at: null } : r))
+      }
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+  const handleDeleteRoom = async (e: React.MouseEvent, roomId: string, roomName: string) => {
+    e.stopPropagation()
+    if (confirm(`Are you sure you want to permanently delete "${roomName}"? This cannot be undone.`)) {
+      try {
+        const res = await fetch(`/api/rooms/${roomId}`, { method: 'DELETE' })
+        if (res.ok) {
+          setRooms(prev => prev.filter(r => r.id !== roomId))
+        }
+      } catch (err) {
+        console.error('Failed to delete room:', err)
+      }
+    }
+  }
+
+  const handleSignOut = async () => {
+    await signOut()
+    router.push('/login')
+    router.refresh()
+  }
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f5f0e8] text-[#6b5c4e]">
@@ -196,15 +235,20 @@ export default function DashboardPage() {
               <strong>{firstName}</strong>
               <small>Personal workspace</small>
             </p>
-            <button className="dots" onClick={() => signOut()} aria-label="Sign out">
-              <SignOut size={16} />
+            <button 
+              className="dots p-2 rounded-lg hover:bg-[#ede8dc] text-muted-foreground hover:text-heading transition" 
+              onClick={handleSignOut} 
+              title="Sign out of workspace"
+              aria-label="Sign out"
+            >
+              <SignOut size={18} />
             </button>
           </div>
         </div>
       </aside>
 
       {/* Main Content */}
-      <div className="main pb-20 md:pb-8">
+      <div className="main pb-24 md:pb-8">
         <header className="topbar">
           <div>
             <p className="eyebrow">{currentDateFormatted}</p>
@@ -346,12 +390,12 @@ export default function DashboardPage() {
                         </span>
                       </div>
 
-                      {/* Quick actions on card */}
-                      <div className="card-actions-hover pt-2 flex items-center gap-2">
+                      {/* CRUD Actions on Card */}
+                      <div className="card-actions-hover pt-2 flex flex-wrap items-center gap-1.5">
                         <button
                           type="button"
                           onClick={(e) => copyRoomLink(e, room.id)}
-                          className="px-2.5 py-1.5 bg-[#faf7f2] border border-[#ddd5c8] rounded-lg text-xs font-medium text-heading hover:bg-[#1c1917] hover:text-[#f5f0e8] transition flex items-center gap-1.5"
+                          className="px-2.5 py-1.5 bg-[#faf7f2] border border-[#ddd5c8] rounded-lg text-xs font-medium text-heading hover:bg-[#1c1917] hover:text-[#f5f0e8] transition flex items-center gap-1"
                           title="Copy public responder link"
                         >
                           {copiedId === room.id ? (
@@ -362,7 +406,7 @@ export default function DashboardPage() {
                           ) : (
                             <>
                               <Copy size={13} />
-                              <span>Copy Link</span>
+                              <span>Copy</span>
                             </>
                           )}
                         </button>
@@ -373,23 +417,56 @@ export default function DashboardPage() {
                             e.stopPropagation()
                             router.push(`/room/${room.id}/results`)
                           }}
-                          className="px-2.5 py-1.5 bg-[#faf7f2] border border-[#ddd5c8] rounded-lg text-xs font-medium text-heading hover:bg-[#1c1917] hover:text-[#f5f0e8] transition flex items-center gap-1.5"
+                          className="px-2.5 py-1.5 bg-[#faf7f2] border border-[#ddd5c8] rounded-lg text-xs font-medium text-heading hover:bg-[#1c1917] hover:text-[#f5f0e8] transition flex items-center gap-1"
+                          title="View insights and responses"
                         >
                           <ChartBar size={13} />
                           <span>Results</span>
                         </button>
 
-                        {room.status === 'open' && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            router.push(`/room/${room.id}`)
+                          }}
+                          className="px-2.5 py-1.5 bg-[#faf7f2] border border-[#ddd5c8] rounded-lg text-xs font-medium text-heading hover:bg-[#1c1917] hover:text-[#f5f0e8] transition flex items-center gap-1"
+                          title="Edit room settings and questions"
+                        >
+                          <PencilSimple size={13} />
+                          <span>Edit</span>
+                        </button>
+
+                        {room.status === 'open' ? (
                           <button
                             type="button"
                             onClick={(e) => handleCloseRoom(e, room.id)}
-                            className="px-2.5 py-1.5 bg-[#faf7f2] border border-[#ddd5c8] rounded-lg text-xs font-medium text-[#c0392b] hover:bg-[#c0392b] hover:text-white transition flex items-center gap-1.5 ml-auto"
-                            title="Close room"
+                            className="px-2 py-1.5 bg-[#faf7f2] border border-[#ddd5c8] rounded-lg text-xs font-medium text-muted-foreground hover:bg-[#1c1917] hover:text-[#f5f0e8] transition flex items-center gap-1"
+                            title="Close room to new responses"
                           >
                             <XCircle size={13} />
                             <span>Close</span>
                           </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={(e) => handleReopenRoom(e, room.id)}
+                            className="px-2 py-1.5 bg-[#faf7f2] border border-[#ddd5c8] rounded-lg text-xs font-medium text-[#7c8c5e] hover:bg-[#7c8c5e] hover:text-white transition flex items-center gap-1"
+                            title="Reopen room for responses"
+                          >
+                            <ArrowClockwise size={13} />
+                            <span>Reopen</span>
+                          </button>
                         )}
+
+                        <button
+                          type="button"
+                          onClick={(e) => handleDeleteRoom(e, room.id, room.name)}
+                          className="p-1.5 bg-[#faf7f2] border border-[#ddd5c8] rounded-lg text-xs text-[#c0392b] hover:bg-[#c0392b] hover:text-white transition ml-auto"
+                          title="Delete room permanently"
+                        >
+                          <Trash size={13} />
+                        </button>
                       </div>
                     </div>
                   </motion.article>

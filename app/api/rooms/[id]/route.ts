@@ -44,7 +44,7 @@ export async function PATCH(
     }
 
     const body = await request.json()
-    const updates = body as Partial<Room>
+    const { questions, ...updates } = body
 
     const { data, error } = await supabase
       .from('rooms')
@@ -58,6 +58,20 @@ export async function PATCH(
       .single()
 
     if (error) throw error
+
+    if (questions && Array.isArray(questions)) {
+      await supabase.from('questions').delete().eq('room_id', id)
+      const formatted = questions
+        .filter((q: any) => q.text && q.text.trim())
+        .map((q: any, i: number) => ({
+          room_id: id,
+          text: q.text.trim(),
+          order_index: i,
+        }))
+      if (formatted.length > 0) {
+        await supabase.from('questions').insert(formatted)
+      }
+    }
 
     return NextResponse.json(data)
   } catch (error: any) {

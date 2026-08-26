@@ -79,6 +79,10 @@ export function useUser() {
     setError(null)
     
     try {
+      try {
+        await fetch('/api/auth/logout', { method: 'POST' })
+      } catch {}
+
       const { error } = await supabase.auth.signOut()
       
       if (error) throw error

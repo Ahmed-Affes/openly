@@ -22,7 +22,8 @@ import {
   Chats,
   Smiley,
   ShieldCheck,
-  DownloadSimple
+  DownloadSimple,
+  Trash
 } from '@phosphor-icons/react'
 
 export default function ResultsPage() {
@@ -632,11 +633,11 @@ export default function ResultsPage() {
               <div className="pt-4 border-t border-[#ddd5c8] flex flex-wrap gap-3">
                 <Button onClick={() => router.push(`/room/${room.id}`)} variant="secondary">
                   <GearSix size={16} />
-                  <span>Edit Room Settings</span>
+                  <span>Edit Room & Questions</span>
                 </Button>
 
                 {room.status === 'open' ? (
-                  <Button onClick={closeRoom} variant="danger">
+                  <Button onClick={closeRoom} variant="secondary">
                     <XCircle size={16} />
                     <span>Close Room to Responses</span>
                   </Button>
@@ -646,6 +647,22 @@ export default function ResultsPage() {
                     <span>Reopen Room</span>
                   </Button>
                 )}
+
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (confirm(`Are you sure you want to permanently delete "${room.name}"? This cannot be undone.`)) {
+                      const res = await fetch(`/api/rooms/${room.id}`, { method: 'DELETE' })
+                      if (res.ok) {
+                        router.push('/dashboard')
+                      }
+                    }
+                  }}
+                  className="px-4 py-2 bg-[#c0392b] text-white rounded-full text-xs font-semibold hover:bg-[#a93226] transition flex items-center gap-1.5 ml-auto"
+                >
+                  <Trash size={14} />
+                  <span>Delete Room</span>
+                </button>
               </div>
             </div>
           </div>
