@@ -33,6 +33,17 @@ export default function HomePage() {
     supabase.auth.getUser().then(({ data }) => setUser(data.user))
   }, [supabase])
 
+  const [demoReaction, setDemoReaction] = useState(72)
+
+  const getDemoLabel = (n: number) => {
+    if (n < 25) return { text: 'Calm / Great', color: '#7c8c5e' }
+    if (n < 50) return { text: 'Manageable', color: '#7c8c5e' }
+    if (n < 75) return { text: 'Concerning', color: '#e2c054' }
+    return { text: 'Critical Issue', color: '#c2674a' }
+  }
+
+  const demoStatus = getDemoLabel(demoReaction)
+
   const startHref = user ? '/room/create' : '/signup'
 
   return (
@@ -93,7 +104,7 @@ export default function HomePage() {
                 <ArrowRight size={16} />
               </Link>
               <a href="#demo" className="secondary-button text-sm">
-                <span>Try the live survey</span>
+                <span>Try the live preview</span>
               </a>
             </div>
 
@@ -104,7 +115,7 @@ export default function HomePage() {
 
           {/* Interactive Demo Preview Card */}
           <div id="demo" className="rounded-2xl border border-[#ddd5c8] bg-[#ede8dc] p-7 shadow-lg relative">
-            <p className="eyebrow text-[#c2674a]">Sprint retro · Question 1 of 3</p>
+            <p className="eyebrow text-[#c2674a]">Interactive preview · Question 1 of 3</p>
             <h2 className="mt-3 font-serif text-2xl sm:text-3xl text-heading">
               What could we do <em>better?</em>
             </h2>
@@ -112,16 +123,29 @@ export default function HomePage() {
               Your answer is 100% anonymous. Take your time.
             </p>
 
-            <div className="mt-5 p-4 rounded-xl bg-[#faf7f2] border border-[#ddd5c8] text-xs text-muted-foreground leading-relaxed">
-              Say it how you would say it in complete confidence…
+            <div className="mt-5 p-4 rounded-xl bg-[#faf7f2] border border-[#ddd5c8] text-xs text-heading leading-relaxed italic">
+              “I feel our handoff process feels rushed right before client reviews…”
             </div>
 
             <div className="mt-4 flex items-center justify-between text-xs font-semibold">
               <span className="text-heading">How does this feel?</span>
-              <span className="text-[#c2674a]">Concerning</span>
+              <span style={{ color: demoStatus.color }}>{demoStatus.text} ({demoReaction}/100)</span>
             </div>
 
-            <div className="mt-2 h-2.5 rounded-full bg-gradient-to-r from-[#7c8c5e] via-[#e2c054] to-[#c2674a]" />
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={demoReaction}
+              onChange={(e) => setDemoReaction(Number(e.target.value))}
+              className="reaction-range"
+              aria-label="Reaction feeling slider demo"
+            />
+
+            <div className="flex justify-between text-[11px] text-muted-foreground font-medium">
+              <span className="text-[#7c8c5e]">Calm / Great</span>
+              <span className="text-[#c2674a]">Critical issue</span>
+            </div>
           </div>
         </section>
 

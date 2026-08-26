@@ -3,9 +3,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { motion } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
 import { Room } from '@/types'
-import { getScoreMessage } from '@/lib/utils/score'
+import { calculateSafetyScore, getScoreMessage } from '@/lib/utils/score'
 import { Logo, Button, RoomTypeBadge } from '@/components/shared'
 import { useUser } from '@/hooks/useUser'
 import { 
@@ -19,7 +20,8 @@ import {
   XCircle, 
   Plus,
   Check,
-  Bell
+  Bell,
+  SignOut
 } from '@phosphor-icons/react'
 
 export default function DashboardPage() {
@@ -28,19 +30,69 @@ export default function DashboardPage() {
   const { user, signOut } = useUser()
   const [rooms, setRooms] = useState<Room[]>([])
   const [loading, setLoading] = useState(true)
-  const [safetyScore] = useState(84)
+  const [safetyMetrics, setSafetyMetrics] = useState({
+    score: 84,
+    trend: 'stable' as 'up' | 'down' | 'stable',
+    explanation: 'Give your team a quiet space to share what is real.'
+  })
   const [sort, setSort] = useState<'recent' | 'open'>('recent')
   const [copiedId, setCopiedId] = useState<string | null>(null)
 
   useEffect(() => {
     async function loadData() {
       if (!user) return
-      const { data } = await supabase
+      
+      // 1. Load creator's rooms
+      const { data: roomData } = await supabase
         .from('rooms')
         .select('*')
         .eq('creator_id', user.id)
         .order('created_at', { ascending: false })
-      if (data) setRooms(data)
+      
+      if (roomData) {
+        setRooms(roomData)
+
+        // 2. Load submissions, answers, and threads to calculate dynamic safety score
+        const roomIds = roomData.map(r => r.id)
+        if (roomIds.length > 0) {
+          const [{ data: submissions }, { data: threads }] = await Promise.all([
+            supabase
+              .from('submissions')
+              .select('*, answers(*)')
+              .in('room_id', roomIds),
+            supabase
+              .from('threads')
+              .select('*, thread_messages(*)')
+              .in('room_id', roomIds),
+          ])
+
+          const allSubmissions = submissions || []
+          const allAnswers = allSubmissions.flatMap((s: any) => s.answers || [])
+          const allThreads = threads || []
+
+          if (allSubmissions.length > 0) {
+            const calculated = calculateSafetyScore(
+              allSubmissions,
+              allAnswers,
+              allThreads,
+              [],
+              allSubmissions.length * 2, // estimated audience
+              roomData.some(r => r.is_recurring)
+            )
+            setSafetyMetrics({
+              score: calculated.score,
+              trend: calculated.trend,
+              explanation: calculated.explanation,
+            })
+          } else {
+            setSafetyMetrics({
+              score: 85,
+              trend: 'stable',
+              explanation: 'Waiting for your first responses to calibrate team openness.',
+            })
+          }
+        }
+      }
       setLoading(false)
     }
     loadData()
@@ -56,7 +108,7 @@ export default function DashboardPage() {
 
   const firstName = user?.user_metadata?.name?.split(' ')[0] || user?.email?.split('@')[0] || 'there'
 
-  // Time-aware greeting
+  // Time-aware greeting in Fraunces
   const getGreeting = () => {
     const hour = new Date().getHours()
     if (hour < 12) return 'Good morning'
@@ -105,7 +157,7 @@ export default function DashboardPage() {
 
   return (
     <div className="app-shell">
-      {/* Sticky Sidebar */}
+      {/* Sticky Desktop Sidebar */}
       <aside className="sidebar">
         <Link href="/" aria-label="Openly home">
           <Logo />
@@ -145,23 +197,20 @@ export default function DashboardPage() {
               <small>Personal workspace</small>
             </p>
             <button className="dots" onClick={() => signOut()} aria-label="Sign out">
-              ···
+              <SignOut size={16} />
             </button>
           </div>
         </div>
       </aside>
 
       {/* Main Content */}
-      <div className="main">
+      <div className="main pb-20 md:pb-8">
         <header className="topbar">
           <div>
             <p className="eyebrow">{currentDateFormatted}</p>
             <h1 className="font-serif text-3xl font-medium">{getGreeting()}, {firstName}.</h1>
           </div>
           <div className="top-actions flex items-center gap-3">
-            <button className="p-2.5 bg-[#ede8dc] border border-[#ddd5c8] rounded-full text-heading hover:bg-[#ddd5c8] transition" aria-label="Notifications">
-              <Bell size={18} />
-            </button>
             <Button onClick={() => router.push('/room/create')}>
               <Plus size={16} weight="bold" />
               <span>New room</span>
@@ -171,7 +220,13 @@ export default function DashboardPage() {
 
         <main className="page-content">
           {/* Stats Bar */}
-          <section className="stats" aria-label="Workspace summary">
+          <motion.section 
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            className="stats" 
+            aria-label="Workspace summary"
+          >
             <div>
               <span className="eyebrow">Active rooms</span>
               <b>{rooms.filter((room) => room.status === 'open').length}</b>
@@ -184,28 +239,35 @@ export default function DashboardPage() {
             </div>
             <div>
               <span className="eyebrow">Safety score</span>
-              <b>{safetyScore}</b>
-              <small className="text-[#7c8c5e] font-semibold">↑ 8 this cycle</small>
+              <b>{safetyMetrics.score}</b>
+              <small className="text-[#7c8c5e] font-semibold">
+                {safetyMetrics.trend === 'up' ? '↑ Increasing trust' : 'Calibrated team index'}
+              </small>
             </div>
-          </section>
+          </motion.section>
 
           {/* Safety score widget ALWAYS ABOVE rooms list */}
-          <section className="safety-strip">
+          <motion.section 
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.05 }}
+            className="safety-strip"
+          >
             <div className="safety-icon">
               <Sparkle size={26} weight="fill" />
             </div>
             <div className="flex-1">
-              <p className="eyebrow text-[#7c8c5e]">Your space is feeling open</p>
+              <p className="eyebrow text-[#7c8c5e]">Psychological Safety Index</p>
               <h3>
-                Psychological safety <strong>{safetyScore}</strong>
+                Team openness score <strong>{safetyMetrics.score}</strong>
                 <span> / 100</span>
               </h3>
-              <p>{getScoreMessage(safetyScore)}</p>
+              <p>{safetyMetrics.explanation || getScoreMessage(safetyMetrics.score)}</p>
             </div>
             <Button onClick={() => router.push('/room/create')}>
               Create new room →
             </Button>
-          </section>
+          </motion.section>
 
           {/* Rooms List Section */}
           <section id="rooms" className="section-block mt-8">
@@ -249,9 +311,12 @@ export default function DashboardPage() {
               </div>
             ) : (
               <div className="bento">
-                {sortedRooms.map((room) => (
-                  <article 
-                    key={room.id} 
+                {sortedRooms.map((room, idx) => (
+                  <motion.article 
+                    key={room.id}
+                    initial={{ opacity: 0, y: 15 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.25, delay: idx * 0.04 }}
                     className="room-card group" 
                     onClick={() => router.push(`/room/${room.id}/results`)}
                   >
@@ -281,7 +346,7 @@ export default function DashboardPage() {
                         </span>
                       </div>
 
-                      {/* Hover state reveals quick actions: Copy Link, View Results, Close Room */}
+                      {/* Quick actions on card */}
                       <div className="card-actions-hover pt-2 flex items-center gap-2">
                         <button
                           type="button"
@@ -327,13 +392,45 @@ export default function DashboardPage() {
                         )}
                       </div>
                     </div>
-                  </article>
+                  </motion.article>
                 ))}
               </div>
             )}
           </section>
         </main>
       </div>
+
+      {/* Mobile Bottom Navigation Bar */}
+      <nav className="mobile-nav-bar" aria-label="Mobile navigation">
+        <button 
+          className="mobile-nav-item active" 
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        >
+          <House size={20} weight="fill" />
+          <span>Overview</span>
+        </button>
+        <button 
+          className="mobile-nav-item" 
+          onClick={() => document.getElementById('rooms')?.scrollIntoView({ behavior: 'smooth' })}
+        >
+          <GridFour size={20} />
+          <span>Rooms ({rooms.length})</span>
+        </button>
+        <button 
+          className="mobile-nav-item !text-[#c2674a]" 
+          onClick={() => router.push('/room/create')}
+        >
+          <Plus size={22} weight="bold" />
+          <span>New</span>
+        </button>
+        <button 
+          className="mobile-nav-item" 
+          onClick={() => router.push('/settings')}
+        >
+          <GearSix size={20} />
+          <span>Settings</span>
+        </button>
+      </nav>
     </div>
   )
 }

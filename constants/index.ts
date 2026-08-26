@@ -1,11 +1,11 @@
 import { RoomType, RoomStatus, Cadence } from '@/types'
 
-export const ROOM_TYPES: { value: RoomType; label: string; icon: string; description: string }[] = [
-  { value: 'pulse_check', label: 'Pulse check', icon: '↗', description: 'Track a feeling over time' },
-  { value: 'open_feedback', label: 'Open feedback', icon: '□', description: 'Let people lead the conversation' },
-  { value: 'qa', label: 'Q&A', icon: '?', description: 'Ask specific questions' },
-  { value: 'decision_vote', label: 'Decision vote', icon: '◉', description: 'Make a call without groupthink' },
-  { value: 'hot_take', label: 'Hot take', icon: '!', description: 'Collect and rank honest takes' },
+export const ROOM_TYPES: { value: RoomType; label: string; iconName: string; description: string }[] = [
+  { value: 'pulse_check', label: 'Pulse Check', iconName: 'Activity', description: 'Track team temperature and emotional climate over time' },
+  { value: 'open_feedback', label: 'Open Feedback', iconName: 'ChatCircleDots', description: 'Let people lead the conversation with open reflections' },
+  { value: 'qa', label: 'Q&A', iconName: 'Question', description: 'Ask specific questions and gather honest answers safely' },
+  { value: 'decision_vote', label: 'Decision Vote', iconName: 'CheckSquareOffset', description: 'Make clear team calls without loud voices dominating' },
+  { value: 'hot_take', label: 'Hot Take', iconName: 'Flame', description: 'Make space for bold opinions behind polite conversations' },
 ]
 
 export const ROOM_STATUSES: RoomStatus[] = ['open', 'closed', 'scheduled']

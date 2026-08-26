@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { RoomWithQuestions, Thread } from '@/types'
@@ -22,7 +22,7 @@ import {
   Chats,
   Smiley,
   ShieldCheck,
-  Funnel
+  DownloadSimple
 } from '@phosphor-icons/react'
 
 export default function ResultsPage() {
@@ -64,42 +64,25 @@ export default function ResultsPage() {
 
     loadRoom()
 
-    // Realtime subscriptions
-    const submissionsChannel = supabase
-      .channel(`submissions:${params.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'submissions',
-          filter: `room_id=eq.${params.id}`,
-        },
-        () => {
-          refetchSubmissions()
-        }
-      )
-      .subscribe()
-
-    const threadsChannel = supabase
-      .channel(`threads:${params.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'threads',
-          filter: `room_id=eq.${params.id}`,
-        },
-        () => {
-          refetchThreads()
-        }
-      )
+    // Realtime subscriptions for submissions, answers, and threads
+    const channel = supabase
+      .channel(`room-insights:${params.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'submissions', filter: `room_id=eq.${params.id}` }, () => {
+        setTimeout(() => refetchSubmissions(), 400)
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'answers' }, () => {
+        setTimeout(() => refetchSubmissions(), 400)
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'threads', filter: `room_id=eq.${params.id}` }, () => {
+        refetchThreads()
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'thread_messages' }, () => {
+        refetchThreads()
+      })
       .subscribe()
 
     return () => {
-      supabase.removeChannel(submissionsChannel)
-      supabase.removeChannel(threadsChannel)
+      supabase.removeChannel(channel)
     }
   }, [params.id, supabase, refetchSubmissions, refetchThreads])
 
@@ -110,6 +93,40 @@ export default function ResultsPage() {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     }
+  }
+
+  const exportCSV = () => {
+    if (!room || submissions.length === 0) return
+
+    const rows: string[][] = [
+      ['Submission ID', 'Date', 'Question', 'Response Text', 'Reaction Level (0-100)', 'Intensity']
+    ]
+
+    submissions.forEach((s: any, sIdx: number) => {
+      const subNumber = `#${submissions.length - sIdx}`
+      const date = new Date(s.created_at).toLocaleString()
+      
+      s.answers?.forEach((a: any) => {
+        const qText = room.questions.find(q => q.id === a.question_id)?.text || 'Question'
+        rows.push([
+          subNumber,
+          `"${date}"`,
+          `"${qText.replace(/"/g, '""')}"`,
+          `"${(a.text || '').replace(/"/g, '""')}"`,
+          String(a.reaction_level ?? ''),
+          String(a.intensity ?? '')
+        ])
+      })
+    })
+
+    const csvContent = 'data:text/csv;charset=utf-8,' + rows.map(r => r.join(',')).join('\n')
+    const encodedUri = encodeURI(csvContent)
+    const link = document.createElement('a')
+    link.setAttribute('href', encodedUri)
+    link.setAttribute('download', `openly-${room.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}-insights.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
   }
 
   const closeRoom = async () => {
@@ -135,6 +152,36 @@ export default function ResultsPage() {
       }
     } catch (err) {
       console.error('Failed to reopen room:', err)
+    }
+  }
+
+  // Handle starting a thread from a specific submission
+  const handleStartThreadForSubmission = async (submissionId: string) => {
+    // Check if a thread already exists for this submission
+    const existing = threads.find(t => t.submission_id === submissionId)
+    if (existing) {
+      setSelectedThread(existing)
+      return
+    }
+
+    try {
+      const response = await fetch('/api/threads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          submissionId,
+          roomId: params.id,
+        }),
+      })
+
+      if (response.ok) {
+        const newThread = await response.json()
+        newThread.messages = []
+        setSelectedThread(newThread)
+        refetchThreads()
+      }
+    } catch (err) {
+      console.error('Failed to start thread:', err)
     }
   }
 
@@ -251,6 +298,17 @@ export default function ResultsPage() {
           </button>
 
           <div className="flex items-center gap-3">
+            {submissions.length > 0 && (
+              <button
+                onClick={exportCSV}
+                className="px-3.5 py-2 bg-[#ede8dc] border border-[#ddd5c8] rounded-full text-xs font-semibold text-heading hover:bg-[#ddd5c8] transition flex items-center gap-1.5"
+                title="Export submissions to CSV"
+              >
+                <DownloadSimple size={14} />
+                <span className="hidden sm:inline">Export CSV</span>
+              </button>
+            )}
+
             <button
               onClick={copyRoomLink}
               className="px-4 py-2 bg-[#ede8dc] border border-[#ddd5c8] rounded-full text-xs font-semibold text-heading hover:bg-[#1c1917] hover:text-[#f5f0e8] transition flex items-center gap-1.5"
@@ -422,7 +480,7 @@ export default function ResultsPage() {
           </div>
         )}
 
-        {/* 2. SUBMISSIONS TAB: Response cards with colored left border */}
+        {/* 2. SUBMISSIONS TAB: Response cards with colored left border & Thread actions */}
         {tab === 'Submissions' && (
           <div className="space-y-4">
             {submissions.length === 0 ? (
@@ -439,54 +497,70 @@ export default function ResultsPage() {
                 </button>
               </div>
             ) : (
-              submissions.map((submission: any, sIdx: number) => (
-                <div key={submission.id || sIdx} className="rounded-2xl border border-[#ddd5c8] bg-[#ede8dc] p-6 space-y-4">
-                  <div className="flex items-center justify-between text-xs text-muted-foreground pb-2 border-b border-[#ddd5c8]">
-                    <span className="font-semibold text-heading flex items-center gap-1.5">
-                      <ShieldCheck size={16} className="text-[#7c8c5e]" />
-                      Anonymous Submission #{submissions.length - sIdx}
-                    </span>
-                    <span>{new Date(submission.created_at).toLocaleString()}</span>
-                  </div>
-
-                  <div className="space-y-3">
-                    {submission.answers?.map((answer: any, aIdx: number) => {
-                      const borderColor = getBorderColor(answer.reaction_level)
-                      return (
-                        <div
-                          key={answer.id || aIdx}
-                          className="p-4 bg-[#faf7f2] rounded-xl border border-[#ddd5c8] shadow-sm"
-                          style={{
-                            borderLeftWidth: '5px',
-                            borderLeftColor: borderColor,
-                          }}
+              submissions.map((submission: any, sIdx: number) => {
+                const thread = threads.find(t => t.submission_id === submission.id)
+                return (
+                  <div key={submission.id || sIdx} className="rounded-2xl border border-[#ddd5c8] bg-[#ede8dc] p-6 space-y-4">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground pb-2 border-b border-[#ddd5c8]">
+                      <span className="font-semibold text-heading flex items-center gap-1.5">
+                        <ShieldCheck size={16} className="text-[#7c8c5e]" />
+                        Anonymous Submission #{submissions.length - sIdx}
+                      </span>
+                      <div className="flex items-center gap-3">
+                        <span>{new Date(submission.created_at).toLocaleString()}</span>
+                        <button
+                          onClick={() => handleStartThreadForSubmission(submission.id)}
+                          className={`px-3 py-1 rounded-full text-xs font-semibold transition flex items-center gap-1.5 ${
+                            thread
+                              ? 'bg-[#1c1917] text-[#f5f0e8]'
+                              : 'bg-[#faf7f2] border border-[#ddd5c8] text-heading hover:bg-[#1c1917] hover:text-[#f5f0e8]'
+                          }`}
                         >
-                          {answer.text && (
-                            <p className="text-sm text-heading leading-relaxed font-normal">{answer.text}</p>
-                          )}
+                          <ChatCircleDots size={14} />
+                          <span>{thread ? `View Thread (${thread.messages?.length || 1})` : 'Ask Clarification'}</span>
+                        </button>
+                      </div>
+                    </div>
 
-                          <div className="mt-3 pt-2 border-t border-[#ddd5c8]/50 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                            {answer.reaction_level !== null && answer.reaction_level !== undefined && (
-                              <span className="flex items-center gap-1">
-                                <span className="font-medium text-heading">Reaction:</span>
-                                <span style={{ color: borderColor }} className="font-semibold">
-                                  {answer.reaction_level}/100
+                    <div className="space-y-3">
+                      {submission.answers?.map((answer: any, aIdx: number) => {
+                        const borderColor = getBorderColor(answer.reaction_level)
+                        return (
+                          <div
+                            key={answer.id || aIdx}
+                            className="p-4 bg-[#faf7f2] rounded-xl border border-[#ddd5c8] shadow-sm"
+                            style={{
+                              borderLeftWidth: '5px',
+                              borderLeftColor: borderColor,
+                            }}
+                          >
+                            {answer.text && (
+                              <p className="text-sm text-heading leading-relaxed font-normal">{answer.text}</p>
+                            )}
+
+                            <div className="mt-3 pt-2 border-t border-[#ddd5c8]/50 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                              {answer.reaction_level !== null && answer.reaction_level !== undefined && (
+                                <span className="flex items-center gap-1">
+                                  <span className="font-medium text-heading">Reaction:</span>
+                                  <span style={{ color: borderColor }} className="font-semibold">
+                                    {answer.reaction_level}/100
+                                  </span>
                                 </span>
-                              </span>
-                            )}
-                            {answer.intensity && (
-                              <span className="flex items-center gap-1">
-                                <span className="font-medium text-heading">Weight:</span>
-                                <span className="capitalize text-heading">{answer.intensity}</span>
-                              </span>
-                            )}
+                              )}
+                              {answer.intensity && (
+                                <span className="flex items-center gap-1">
+                                  <span className="font-medium text-heading">Weight:</span>
+                                  <span className="capitalize text-heading">{answer.intensity}</span>
+                                </span>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      )
-                    })}
+                        )
+                      })}
+                    </div>
                   </div>
-                </div>
-              ))
+                )
+              })
             )}
           </div>
         )}
@@ -499,7 +573,7 @@ export default function ResultsPage() {
                 <ChatCircleDots size={32} className="text-muted-foreground mx-auto mb-2" />
                 <h3 className="font-serif text-xl text-heading">No threads started yet</h3>
                 <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
-                  When you or responders open follow-up questions, anonymous 2-way threads appear here.
+                  Click &ldquo;Ask Clarification&rdquo; on any submission card to start a 2-way anonymous discussion.
                 </p>
               </div>
             ) : (
@@ -513,7 +587,7 @@ export default function ResultsPage() {
                 >
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-semibold text-heading">
-                      {thread.messages?.length || 1} messages
+                      {thread.messages?.length || 0} messages
                     </span>
                     <div className="flex gap-2">
                       {thread.is_resolved && (
@@ -524,7 +598,7 @@ export default function ResultsPage() {
                     </div>
                   </div>
                   <p className="text-sm text-heading">
-                    {thread.messages?.[0]?.text || 'Click to view conversation'}
+                    {thread.messages?.[0]?.text || 'Click to view conversation and reply'}
                   </p>
                 </div>
               ))
@@ -585,7 +659,7 @@ export default function ResultsPage() {
             <div className="flex items-center justify-between pb-4 border-b border-[#ddd5c8]">
               <div>
                 <h3 className="font-serif text-xl text-heading">Anonymous Thread</h3>
-                <p className="text-xs text-muted-foreground">2-way secure communication</p>
+                <p className="text-xs text-muted-foreground">2-way secure communication with responder</p>
               </div>
               <button 
                 onClick={() => setSelectedThread(null)}
@@ -597,24 +671,31 @@ export default function ResultsPage() {
 
             {/* Thread messages */}
             <div className="flex-1 overflow-y-auto py-4 space-y-3">
-              {selectedThread.messages?.map((msg: any, i: number) => {
-                const isCreator = msg.sender === 'creator'
-                return (
-                  <div
-                    key={msg.id || i}
-                    className={`flex flex-col max-w-[85%] rounded-2xl p-4 text-sm ${
-                      isCreator
-                        ? 'ml-auto bg-[#c2674a] text-[#f5f0e8] rounded-br-none'
-                        : 'mr-auto bg-[#ede8dc] border border-[#ddd5c8] text-heading rounded-bl-none'
-                    }`}
-                  >
-                    <span className="text-[10px] uppercase font-bold opacity-75 mb-1">
-                      {isCreator ? 'You (Creator)' : 'Anonymous Responder'}
-                    </span>
-                    <p className="leading-relaxed">{msg.text}</p>
-                  </div>
-                )
-              })}
+              {(!selectedThread.messages || selectedThread.messages.length === 0) ? (
+                <div className="text-center py-12 text-muted-foreground text-xs">
+                  <p className="font-semibold text-heading mb-1">Start a 2-way conversation</p>
+                  <p>Ask a clarifying question. The responder will see this when they check their anonymous thread.</p>
+                </div>
+              ) : (
+                selectedThread.messages.map((msg: any, i: number) => {
+                  const isCreator = msg.sender === 'creator'
+                  return (
+                    <div
+                      key={msg.id || i}
+                      className={`flex flex-col max-w-[85%] rounded-2xl p-4 text-sm ${
+                        isCreator
+                          ? 'ml-auto bg-[#c2674a] text-[#f5f0e8] rounded-br-none'
+                          : 'mr-auto bg-[#ede8dc] border border-[#ddd5c8] text-heading rounded-bl-none'
+                      }`}
+                    >
+                      <span className="text-[10px] uppercase font-bold opacity-75 mb-1">
+                        {isCreator ? 'You (Creator)' : 'Anonymous Responder'}
+                      </span>
+                      <p className="leading-relaxed">{msg.text}</p>
+                    </div>
+                  )
+                })
+              )}
             </div>
 
             {/* Resolve button & Input Footer */}
@@ -633,7 +714,7 @@ export default function ResultsPage() {
                   type="text"
                   value={replyText}
                   onChange={(e) => setReplyText(e.target.value)}
-                  placeholder="Type an anonymous reply…"
+                  placeholder="Type an anonymous follow-up…"
                   className="flex-1 text-sm rounded-full px-4"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') handleSendReply()

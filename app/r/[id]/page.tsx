@@ -2,8 +2,9 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
+import { motion, AnimatePresence } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
-import { RoomWithQuestions, Intensity } from '@/types'
+import { RoomWithQuestions, Intensity, Thread } from '@/types'
 import { getDeviceHash, markAsSubmitted, hasSubmitted } from '@/lib/utils/fingerprint'
 import { RoomTypeBadge, Button } from '@/components/shared'
 import { 
@@ -15,7 +16,13 @@ import {
   SmileySad,
   SmileyMeh,
   Heart,
-  Lightbulb
+  Lightbulb,
+  ThumbsUp,
+  ThumbsDown,
+  Question,
+  Flame,
+  PaperPlaneTilt,
+  ChatCircleDots
 } from '@phosphor-icons/react'
 
 const getFeelingLabel = (n: number) => {
@@ -35,15 +42,20 @@ export default function ResponderPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [index, setIndex] = useState(0)
-  const [answers, setAnswers] = useState<Record<number, { text: string; reaction: number; intensity: Intensity }>>({})
+  const [answers, setAnswers] = useState<Record<number, { text: string; reaction: number; intensity: Intensity; voteChoice?: string }>>({})
   const [mood, setMood] = useState(false)
   const [review, setReview] = useState(false)
   const [done, setDone] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   
+  // Follow-up thread state on Done screen
+  const [activeThread, setActiveThread] = useState<any | null>(null)
+  const [responderReply, setResponderReply] = useState('')
+  const [sendingResponderReply, setSendingResponderReply] = useState(false)
+
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  const patch = (field: string, value: string | number) => {
+  const patch = (field: string, value: any) => {
     setAnswers(a => {
       const prev = a[index] || { text: '', reaction: 50, intensity: 'thought' }
       return { ...a, [index]: { ...prev, [field]: value } }
@@ -63,11 +75,7 @@ export default function ResponderPage() {
     async function load() {
       try {
         const id = params.id as string
-        if (hasSubmitted(id)) {
-          setDone(true)
-          return
-        }
-
+        
         let { data } = await supabase
           .from('rooms')
           .select('*, questions (*)')
@@ -83,6 +91,15 @@ export default function ResponderPage() {
         if (data.status !== 'open') throw new Error('This room is closed to new responses.')
         data.questions?.sort((a: any, b: any) => (a.order_index ?? 0) - (b.order_index ?? 0))
         setRoom(data)
+
+        // Check if user has previously submitted to this room and if a creator thread exists
+        if (hasSubmitted(id)) {
+          setDone(true)
+          const storedSubId = typeof window !== 'undefined' ? localStorage.getItem(`openly_submission_${id}`) : null
+          if (storedSubId) {
+            checkThreadForSubmission(storedSubId)
+          }
+        }
       } catch (e: any) {
         setError(e.message)
       } finally {
@@ -91,6 +108,20 @@ export default function ResponderPage() {
     }
     load()
   }, [params.id, supabase])
+
+  const checkThreadForSubmission = async (submissionId: string) => {
+    try {
+      const { data } = await supabase
+        .from('threads')
+        .select('*, thread_messages(*)')
+        .eq('submission_id', submissionId)
+        .single()
+      
+      if (data) {
+        setActiveThread(data)
+      }
+    } catch {}
+  }
 
   const submit = async () => {
     if (!room) return
@@ -105,20 +136,55 @@ export default function ResponderPage() {
           answers: room.questions.map((q, i) => ({
             submission_id: '',
             question_id: q.id,
-            text: answers[i]?.text || null,
+            text: answers[i]?.voteChoice 
+              ? `[Choice: ${answers[i]?.voteChoice}] ${answers[i]?.text || ''}`.trim()
+              : (answers[i]?.text || null),
             reaction_level: answers[i]?.reaction ?? 50,
             intensity: answers[i]?.intensity || 'thought',
           })),
         }),
       })
 
-      if (!response.ok) throw new Error((await response.json()).error || 'Could not submit')
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Could not submit')
+      
       markAsSubmitted(room.id)
+      if (data.submissionId && typeof window !== 'undefined') {
+        localStorage.setItem(`openly_submission_${room.id}`, data.submissionId)
+      }
       setDone(true)
     } catch (e: any) {
       setError(e.message)
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  const sendResponderMessage = async () => {
+    if (!activeThread || !responderReply.trim()) return
+    setSendingResponderReply(true)
+    try {
+      const response = await fetch(`/api/threads/${activeThread.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sender: 'responder',
+          text: responderReply.trim(),
+        }),
+      })
+
+      if (response.ok) {
+        const newMessage = await response.json()
+        setActiveThread((prev: any) => ({
+          ...prev,
+          messages: [...(prev.messages || []), newMessage]
+        }))
+        setResponderReply('')
+      }
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setSendingResponderReply(false)
     }
   }
 
@@ -135,19 +201,75 @@ export default function ResponderPage() {
 
   if (done) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center bg-[#f5f0e8] px-6 text-center animate-fade-in">
-        <div className="mb-6 flex size-20 items-center justify-center rounded-full bg-[#7c8c5e]/20 text-[#7c8c5e]">
-          <Check size={40} weight="bold" />
+      <main className="flex min-h-screen flex-col items-center justify-center bg-[#f5f0e8] px-4 py-12 text-center animate-fade-in">
+        <div className="max-w-md w-full">
+          <div className="mb-6 flex size-20 items-center justify-center rounded-full bg-[#7c8c5e]/20 text-[#7c8c5e] mx-auto">
+            <Check size={40} weight="bold" />
+          </div>
+          <h1 className="font-serif text-3xl sm:text-4xl text-heading">
+            {hasSubmitted((params.id as string)) ? "Your thoughts are safely saved." : 'Your voice has been safely heard.'}
+          </h1>
+          <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
+            Thank you for taking the time to share what is real. Your response is 100% anonymous.
+          </p>
+
+          {/* If creator sent a follow-up message */}
+          {activeThread && (
+            <div className="mt-8 text-left rounded-2xl border border-[#ddd5c8] bg-[#ede8dc] p-5 space-y-4">
+              <div className="flex items-center gap-2 text-xs font-semibold text-[#c2674a]">
+                <ChatCircleDots size={18} weight="bold" />
+                <span>Follow-up from Room Creator</span>
+              </div>
+
+              <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                {activeThread.thread_messages?.map((msg: any, i: number) => {
+                  const isCreator = msg.sender === 'creator'
+                  return (
+                    <div
+                      key={msg.id || i}
+                      className={`p-3 rounded-xl text-xs leading-relaxed ${
+                        isCreator
+                          ? 'bg-[#1c1917] text-[#f5f0e8]'
+                          : 'bg-[#faf7f2] border border-[#ddd5c8] text-heading'
+                      }`}
+                    >
+                      <span className="block text-[10px] uppercase font-bold opacity-70 mb-0.5">
+                        {isCreator ? 'Creator' : 'You (Anonymous)'}
+                      </span>
+                      <p>{msg.text}</p>
+                    </div>
+                  )
+                })}
+              </div>
+
+              <div className="flex gap-2 pt-2 border-t border-[#ddd5c8]">
+                <input
+                  type="text"
+                  value={responderReply}
+                  onChange={(e) => setResponderReply(e.target.value)}
+                  placeholder="Reply anonymously…"
+                  className="flex-1 text-xs rounded-full px-3 py-2"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') sendResponderMessage()
+                  }}
+                />
+                <button
+                  onClick={sendResponderMessage}
+                  disabled={sendingResponderReply || !responderReply.trim()}
+                  className="primary-button !px-4 !py-2 text-xs rounded-full"
+                >
+                  <PaperPlaneTilt size={14} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="mt-8 pt-4">
+            <button onClick={() => router.push('/')} className="secondary-button text-xs">
+              Openly Home
+            </button>
+          </div>
         </div>
-        <h1 className="font-serif text-4xl text-heading">
-          {hasSubmitted((params.id as string)) ? "You've already shared your thoughts." : 'Your voice has been safely heard.'}
-        </h1>
-        <p className="mt-3 max-w-md text-sm text-muted-foreground leading-relaxed">
-          Thank you for taking the time to share what is real. Your response is 100% anonymous. You can close this tab now.
-        </p>
-        <button onClick={() => router.push('/')} className="secondary-button mt-8 text-xs">
-          Openly Home
-        </button>
       </main>
     )
   }
@@ -186,9 +308,14 @@ export default function ResponderPage() {
               <div key={q.id || i} className="rounded-2xl border border-[#ddd5c8] bg-[#ede8dc] p-5 space-y-2">
                 <span className="text-xs font-bold text-[#c2674a]">Question {i + 1}</span>
                 <p className="text-xs font-semibold text-muted-foreground">{q.text}</p>
-                <p className="text-sm text-heading font-medium bg-[#faf7f2] p-3 rounded-xl border border-[#ddd5c8]">
-                  {answers[i]?.text || <em className="text-muted-foreground">Skipped</em>}
-                </p>
+                <div className="text-sm text-heading font-medium bg-[#faf7f2] p-3 rounded-xl border border-[#ddd5c8]">
+                  {answers[i]?.voteChoice && (
+                    <span className="inline-block px-2 py-0.5 mb-1.5 rounded-full bg-[#1c1917] text-[#f5f0e8] text-[11px] font-semibold mr-2">
+                      Selected: {answers[i]?.voteChoice}
+                    </span>
+                  )}
+                  <p>{answers[i]?.text || <em className="text-muted-foreground">No written commentary provided</em>}</p>
+                </div>
               </div>
             ))}
           </div>
@@ -207,7 +334,7 @@ export default function ResponderPage() {
   }
 
   const q = room.questions[index]
-  const a = answers[index] || { text: '', reaction: 50, intensity: 'thought' as Intensity }
+  const a = answers[index] || { text: '', reaction: 50, intensity: 'thought' as Intensity, voteChoice: '' }
 
   return (
     <main className="min-h-screen bg-[#f5f0e8] px-4 py-8">
@@ -260,7 +387,7 @@ export default function ResponderPage() {
             </button>
           </section>
         ) : (
-          <section className="py-10 animate-fade-in space-y-6">
+          <section className="py-8 animate-fade-in space-y-6">
             <div>
               <p className="eyebrow text-[#c2674a]">{room.name}</p>
               <h1 className="mt-2 font-serif text-3xl sm:text-4xl leading-tight text-heading">
@@ -271,6 +398,34 @@ export default function ResponderPage() {
               </p>
             </div>
 
+            {/* Room-specific: Decision Vote cards */}
+            {room.type === 'decision_vote' && (
+              <div className="rounded-2xl border border-[#ddd5c8] bg-[#ede8dc] p-5 space-y-3">
+                <p className="text-xs font-semibold text-heading">Your decision:</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { label: 'In Favor / Yes', icon: <ThumbsUp size={16} /> },
+                    { label: 'Against / No', icon: <ThumbsDown size={16} /> },
+                    { label: 'Needs discussion', icon: <Question size={16} /> },
+                  ].map((vote) => (
+                    <button
+                      key={vote.label}
+                      type="button"
+                      onClick={() => patch('voteChoice', vote.label)}
+                      className={`p-3 rounded-xl text-xs font-semibold flex flex-col items-center gap-1.5 transition ${
+                        a.voteChoice === vote.label
+                          ? 'bg-[#1c1917] text-[#f5f0e8] shadow-sm'
+                          : 'bg-[#faf7f2] border border-[#ddd5c8] text-heading hover:border-[#c2674a]'
+                      }`}
+                    >
+                      {vote.icon}
+                      <span>{vote.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Auto-growing Textarea */}
             <div>
               <textarea
@@ -280,7 +435,7 @@ export default function ResponderPage() {
                 maxLength={500}
                 onChange={handleTextChange}
                 rows={4}
-                placeholder="Say it how you would say it in confidence…"
+                placeholder={room.type === 'decision_vote' ? 'Add rationale or context for your vote…' : 'Say it how you would say it in confidence…'}
                 className="w-full text-base min-h-[130px] rounded-2xl"
               />
               <p className="mt-1 text-right text-xs text-muted-foreground">{a.text.length} / 500</p>
@@ -347,7 +502,7 @@ export default function ResponderPage() {
 
               <button
                 type="button"
-                disabled={!a.text.trim()}
+                disabled={room.type === 'decision_vote' ? !a.voteChoice && !a.text.trim() : !a.text.trim()}
                 onClick={() => {
                   if (index < room.questions.length - 1) setIndex(index + 1)
                   else setReview(true)
