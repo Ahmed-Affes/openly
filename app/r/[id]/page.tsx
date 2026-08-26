@@ -363,7 +363,7 @@ export default function ResponderPage() {
             <h1 className="font-serif text-3xl sm:text-4xl text-heading">Before you begin…</h1>
             <p className="mt-2 text-sm text-muted-foreground">How are you feeling right now?</p>
             
-            <div className="mt-8 grid grid-cols-5 gap-2">
+            <div className="mt-8 grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-3">
               {[
                 { label: 'Calm', icon: <Heart size={24} className="text-[#7c8c5e]" /> },
                 { label: 'Good', icon: <Smiley size={24} className="text-[#7c8c5e]" /> },
@@ -374,7 +374,7 @@ export default function ResponderPage() {
                 <button
                   key={m.label}
                   onClick={() => setMood(true)}
-                  className="rounded-2xl border border-[#ddd5c8] bg-[#ede8dc] p-3 text-xs font-medium text-heading hover:-translate-y-1 hover:border-[#c2674a] transition flex flex-col items-center gap-2"
+                  className="rounded-2xl border border-[#ddd5c8] bg-[#ede8dc] p-3 sm:p-4 text-xs font-medium text-heading hover:-translate-y-1 hover:border-[#c2674a] transition flex flex-col items-center gap-2"
                 >
                   {m.icon}
                   <span>{m.label}</span>
@@ -390,7 +390,7 @@ export default function ResponderPage() {
           <section className="py-8 animate-fade-in space-y-6">
             <div>
               <p className="eyebrow text-[#c2674a]">{room.name}</p>
-              <h1 className="mt-2 font-serif text-3xl sm:text-4xl leading-tight text-heading">
+              <h1 className="mt-2 font-serif text-2xl sm:text-4xl leading-tight text-heading">
                 {q.text}
               </h1>
               <p className="mt-2 text-xs text-muted-foreground">
@@ -400,9 +400,9 @@ export default function ResponderPage() {
 
             {/* Room-specific: Decision Vote cards */}
             {room.type === 'decision_vote' && (
-              <div className="rounded-2xl border border-[#ddd5c8] bg-[#ede8dc] p-5 space-y-3">
+              <div className="rounded-2xl border border-[#ddd5c8] bg-[#ede8dc] p-4 sm:p-5 space-y-3">
                 <p className="text-xs font-semibold text-heading">Your decision:</p>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   {[
                     { label: 'In Favor / Yes', icon: <ThumbsUp size={16} /> },
                     { label: 'Against / No', icon: <ThumbsDown size={16} /> },
@@ -412,7 +412,7 @@ export default function ResponderPage() {
                       key={vote.label}
                       type="button"
                       onClick={() => patch('voteChoice', vote.label)}
-                      className={`p-3 rounded-xl text-xs font-semibold flex flex-col items-center gap-1.5 transition ${
+                      className={`p-3 rounded-xl text-xs font-semibold flex items-center sm:flex-col justify-center gap-2 transition ${
                         a.voteChoice === vote.label
                           ? 'bg-[#1c1917] text-[#f5f0e8] shadow-sm'
                           : 'bg-[#faf7f2] border border-[#ddd5c8] text-heading hover:border-[#c2674a]'
@@ -442,7 +442,7 @@ export default function ResponderPage() {
             </div>
 
             {/* Reaction slider: olive -> yellow -> terracotta */}
-            <div className="rounded-2xl border border-[#ddd5c8] bg-[#ede8dc] p-5 space-y-3">
+            <div className="rounded-2xl border border-[#ddd5c8] bg-[#ede8dc] p-4 sm:p-5 space-y-3">
               <div className="flex justify-between text-xs font-semibold">
                 <span className="text-heading">How does this feel?</span>
                 <span className="text-[#c2674a]">{getFeelingLabel(a.reaction)}</span>
@@ -464,9 +464,9 @@ export default function ResponderPage() {
             </div>
 
             {/* Weight selector */}
-            <div className="rounded-2xl border border-[#ddd5c8] bg-[#ede8dc] p-5 space-y-3">
+            <div className="rounded-2xl border border-[#ddd5c8] bg-[#ede8dc] p-4 sm:p-5 space-y-3">
               <p className="text-xs font-semibold text-heading">How much weight should we give this?</p>
-              <div className="flex gap-3">
+              <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-3">
                 {[
                   { value: 'thought', label: 'Just a thought' },
                   { value: 'urgent', label: 'This is urgent / important' },

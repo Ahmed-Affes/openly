@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { RoomWithQuestions } from '@/types'
-import { RoomTypeBadge, DatePicker, Button } from '@/components/shared'
+import { RoomTypeBadge, DatePicker, Button, ConfirmModal } from '@/components/shared'
 import { 
   ArrowLeft, 
   Check, 
@@ -23,6 +23,7 @@ export default function RoomDetailsPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [status, setStatus] = useState<'open' | 'closed' | 'scheduled'>('open')
@@ -127,24 +128,23 @@ export default function RoomDetailsPage() {
     }
   }
 
-  const handleDeleteRoom = async () => {
+  const handleDeleteRoomConfirm = async () => {
     if (!room) return
-    if (confirm(`Are you sure you want to permanently delete "${room.name}"? All responses and questions will be erased.`)) {
-      setDeleting(true)
-      try {
-        const response = await fetch(`/api/rooms/${params.id}`, {
-          method: 'DELETE',
-        })
-        if (response.ok) {
-          router.push('/dashboard')
-        } else {
-          const data = await response.json()
-          throw new Error(data.error || 'Failed to delete room')
-        }
-      } catch (err: any) {
-        setError(err.message)
-        setDeleting(false)
+    setDeleting(true)
+    try {
+      const response = await fetch(`/api/rooms/${params.id}`, {
+        method: 'DELETE',
+      })
+      if (response.ok) {
+        router.push('/dashboard')
+      } else {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to delete room')
       }
+    } catch (err: any) {
+      setError(err.message)
+      setDeleting(false)
+      setShowDeleteModal(false)
     }
   }
 
@@ -328,16 +328,29 @@ export default function RoomDetailsPage() {
             </div>
             <button
               type="button"
-              onClick={handleDeleteRoom}
+              onClick={() => setShowDeleteModal(true)}
               disabled={deleting}
               className="px-4 py-2 bg-[#c0392b] text-white rounded-full text-xs font-semibold hover:bg-[#a93226] transition flex items-center gap-1.5"
             >
               <Trash size={14} />
-              <span>{deleting ? 'Deleting…' : 'Delete Room'}</span>
+              <span>Delete Room</span>
             </button>
           </div>
         </div>
       </div>
+
+      {/* Delete Room Modal */}
+      <ConfirmModal
+        isOpen={showDeleteModal}
+        title="Delete this room permanently?"
+        description={`Are you sure you want to delete "${room.name}"? All responses, questions, and anonymous discussion threads will be permanently erased.`}
+        confirmText="Delete Room"
+        cancelText="Cancel"
+        variant="danger"
+        loading={deleting}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={handleDeleteRoomConfirm}
+      />
     </div>
   )
 }

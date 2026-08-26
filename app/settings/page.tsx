@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useUser } from '@/hooks/useUser'
+import { ConfirmModal } from '@/components/shared'
 import { 
   ArrowLeft, 
   Bell, 
@@ -12,14 +13,20 @@ import {
   User, 
   Sparkle, 
   SignOut,
-  ShieldCheck
+  ShieldCheck,
+  House,
+  GridFour,
+  Plus,
+  GearSix
 } from '@phosphor-icons/react'
 
 export default function SettingsPage() {
   const router = useRouter()
   const { user, signOut } = useUser()
   const [nudges, setNudges] = useState(true)
-  const [autoDelete, setAutoDelete] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [showSignOutModal, setShowSignOutModal] = useState(false)
+  const [actionLoading, setActionLoading] = useState(false)
 
   const firstName = user?.user_metadata?.name?.split(' ')[0] || user?.email?.split('@')[0] || 'there'
 
@@ -70,43 +77,66 @@ export default function SettingsPage() {
     },
   ]
 
+  const handleDeleteAccount = async () => {
+    setActionLoading(true)
+    try {
+      await signOut()
+      router.push('/')
+    } finally {
+      setActionLoading(false)
+      setShowDeleteModal(false)
+    }
+  }
+
+  const handleSignOutConfirm = async () => {
+    setActionLoading(true)
+    try {
+      await signOut()
+      router.push('/login')
+      router.refresh()
+    } finally {
+      setActionLoading(false)
+      setShowSignOutModal(false)
+    }
+  }
+
   return (
-    <main className="min-h-screen bg-[#f5f0e8] px-4 py-10">
+    <main className="min-h-screen bg-[#f5f0e8] px-4 py-8 pb-24 md:pb-12">
       <div className="mx-auto max-w-xl">
         <button
           onClick={() => router.push('/dashboard')}
-          className="mb-8 inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-heading transition"
+          className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-heading transition"
         >
           <ArrowLeft size={16} />
           <span>Back to dashboard</span>
         </button>
 
         <p className="eyebrow text-[#c2674a]">Your space</p>
-        <h1 className="mt-2 font-serif text-3xl sm:text-4xl text-heading">
+        <h1 className="mt-1 font-serif text-3xl sm:text-4xl text-heading">
           {getGreeting()}, {firstName}.
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
           Manage your account preferences and workspace settings.
         </p>
 
         {/* Setting rows as proper cards with hover state */}
-        <div className="mt-8 flex flex-col gap-3">
+        <div className="mt-6 sm:mt-8 flex flex-col gap-3">
           {rows.map(({ icon: Icon, title, sub, action, toggle, value, set }) => (
             <button
               key={title}
               onClick={toggle ? () => set?.(!value) : action}
-              className="flex min-h-20 items-center gap-4 rounded-2xl border border-[#ddd5c8] bg-[#ede8dc] p-5 text-left transition hover:-translate-y-1 hover:shadow-md cursor-pointer"
+              className="flex min-h-20 items-center gap-3 sm:gap-4 rounded-2xl border border-[#ddd5c8] bg-[#ede8dc] p-4 sm:p-5 text-left transition hover:-translate-y-1 hover:shadow-md cursor-pointer"
             >
-              <span className="flex size-11 items-center justify-center rounded-full bg-[#7c8c5e]/20 text-[#7c8c5e] shrink-0">
-                <Icon size={22} />
+              <span className="flex size-10 sm:size-11 items-center justify-center rounded-full bg-[#7c8c5e]/20 text-[#7c8c5e] shrink-0">
+                <Icon size={20} />
               </span>
-              <span className="flex-1">
-                <strong className="block text-sm text-heading">{title}</strong>
-                <small className="text-xs text-muted-foreground">{sub}</small>
+              <span className="flex-1 min-w-0">
+                <strong className="block text-sm text-heading truncate">{title}</strong>
+                <small className="block text-xs text-muted-foreground truncate">{sub}</small>
               </span>
               {toggle ? (
                 <span
-                  className={`h-6 w-11 rounded-full p-1 transition ${
+                  className={`h-6 w-11 rounded-full p-1 transition shrink-0 ${
                     value ? 'bg-[#c2674a]' : 'bg-[#ddd5c8]'
                   }`}
                 >
@@ -117,16 +147,16 @@ export default function SettingsPage() {
                   />
                 </span>
               ) : (
-                <CaretRight size={18} className="text-muted-foreground" />
+                <CaretRight size={18} className="text-muted-foreground shrink-0" />
               )}
             </button>
           ))}
         </div>
 
         {/* Plan Indicator */}
-        <div className="mt-8 rounded-2xl border-l-4 border-l-[#c2674a] bg-[#ede8dc] border border-[#ddd5c8] p-6 space-y-2">
+        <div className="mt-6 sm:mt-8 rounded-2xl border-l-4 border-l-[#c2674a] bg-[#ede8dc] border border-[#ddd5c8] p-5 sm:p-6 space-y-2">
           <div className="flex items-center justify-between">
-            <h3 className="font-serif text-xl text-heading">Current Plan: Free</h3>
+            <h3 className="font-serif text-lg sm:text-xl text-heading">Current Plan: Free</h3>
             <span className="px-2.5 py-0.5 rounded-full bg-[#7c8c5e]/20 text-[#7c8c5e] text-xs font-semibold">Active</span>
           </div>
           <p className="text-xs text-muted-foreground">
@@ -140,34 +170,29 @@ export default function SettingsPage() {
         </div>
 
         {/* Privacy Note */}
-        <div className="mt-4 rounded-2xl bg-[#1c1917] p-6 text-[#f5f0e8] flex items-start gap-3">
+        <div className="mt-4 rounded-2xl bg-[#1c1917] p-5 sm:p-6 text-[#f5f0e8] flex items-start gap-3">
           <ShieldCheck size={26} className="text-[#c2674a] shrink-0 mt-0.5" weight="fill" />
           <div className="text-xs space-y-1">
-            <strong className="block text-sm font-serif">Built for psychological safety.</strong>
-            <p className="text-[#f5f0e8]/75 leading-relaxed">
-              We never log responder IP addresses, sell data, or compromise anonymous submission anonymity.
+            <strong className="block text-sm font-serif text-[#f5f0e8]">Built for psychological safety.</strong>
+            <p className="text-[#f5f0e8]/75 leading-relaxed text-xs">
+              We never log responder IP addresses, sell data, or compromise anonymous feedback anonymity.
             </p>
           </div>
         </div>
 
         {/* Danger Zone at bottom */}
-        <div className="mt-10 border-t border-[#ddd5c8] pt-8 space-y-6">
-          <h4 className="font-serif text-lg text-heading">Danger Zone</h4>
+        <div className="mt-8 border-t border-[#ddd5c8] pt-6 space-y-4">
+          <h4 className="font-serif text-lg text-heading">Account Actions</h4>
 
-          <div className="rounded-2xl border border-[#c0392b]/30 bg-[#c0392b]/5 p-5 space-y-4">
-            <div className="flex items-center justify-between">
+          <div className="rounded-2xl border border-[#c0392b]/30 bg-[#c0392b]/5 p-5 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <strong className="block text-sm text-[#c0392b]">Delete workspace account</strong>
                 <small className="text-xs text-muted-foreground">Permanently remove all rooms, submissions, and account data</small>
               </div>
               <button 
-                onClick={() => {
-                  if (confirm('Are you sure you want to delete your account? This cannot be undone.')) {
-                    signOut()
-                    router.push('/')
-                  }
-                }}
-                className="px-4 py-2 bg-[#c0392b] text-white rounded-full text-xs font-semibold hover:bg-[#a93226] transition flex items-center gap-1.5"
+                onClick={() => setShowDeleteModal(true)}
+                className="self-start sm:self-auto px-4 py-2 bg-[#c0392b] text-white rounded-full text-xs font-semibold hover:bg-[#a93226] transition flex items-center gap-1.5 shrink-0"
               >
                 <Trash size={14} />
                 <span>Delete Account</span>
@@ -176,17 +201,72 @@ export default function SettingsPage() {
           </div>
 
           <button
-            onClick={async () => {
-              await signOut()
-              router.push('/login')
-            }}
-            className="flex min-h-12 w-full items-center justify-center gap-2 rounded-full border border-[#1c1917] text-[#1c1917] hover:bg-[#1c1917] hover:text-[#f5f0e8] transition text-sm font-semibold"
+            onClick={() => setShowSignOutModal(true)}
+            className="flex min-h-11 w-full items-center justify-center gap-2 rounded-full border border-[#1c1917] text-[#1c1917] hover:bg-[#1c1917] hover:text-[#f5f0e8] transition text-xs font-semibold"
           >
             <SignOut size={16} />
-            <span>Sign out</span>
+            <span>Sign out of workspace</span>
           </button>
         </div>
       </div>
+
+      {/* Delete Account Modal */}
+      <ConfirmModal
+        isOpen={showDeleteModal}
+        title="Delete workspace account?"
+        description="Are you sure you want to permanently delete your account? All rooms, questions, and anonymous submissions will be removed permanently."
+        confirmText="Delete Account"
+        cancelText="Cancel"
+        variant="danger"
+        loading={actionLoading}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={handleDeleteAccount}
+      />
+
+      {/* Sign Out Modal */}
+      <ConfirmModal
+        isOpen={showSignOutModal}
+        title="Sign out of Openly?"
+        description="You will need to enter your email and password to access your creator dashboard again."
+        confirmText="Sign Out"
+        cancelText="Stay signed in"
+        variant="primary"
+        loading={actionLoading}
+        onClose={() => setShowSignOutModal(false)}
+        onConfirm={handleSignOutConfirm}
+      />
+
+      {/* Mobile Bottom Navigation Bar */}
+      <nav className="mobile-nav-bar" aria-label="Mobile navigation">
+        <button 
+          className="mobile-nav-item" 
+          onClick={() => router.push('/dashboard')}
+        >
+          <House size={20} />
+          <span>Overview</span>
+        </button>
+        <button 
+          className="mobile-nav-item" 
+          onClick={() => router.push('/dashboard#rooms')}
+        >
+          <GridFour size={20} />
+          <span>Rooms</span>
+        </button>
+        <button 
+          className="mobile-nav-item !text-[#c2674a]" 
+          onClick={() => router.push('/room/create')}
+        >
+          <Plus size={22} weight="bold" />
+          <span>New</span>
+        </button>
+        <button 
+          className="mobile-nav-item active" 
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        >
+          <GearSix size={20} weight="fill" />
+          <span>Settings</span>
+        </button>
+      </nav>
     </main>
   )
 }

@@ -5,7 +5,7 @@ import { useRouter, useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { RoomWithQuestions, Thread } from '@/types'
 import { useSubmissionsData, useThreadsData } from '@/hooks'
-import { RoomTypeBadge, Button } from '@/components/shared'
+import { RoomTypeBadge, Button, ConfirmModal } from '@/components/shared'
 import { 
   ArrowLeft, 
   Copy, 
@@ -15,15 +15,15 @@ import {
   Sparkle, 
   Users, 
   Clock, 
-  ArrowClockwise,
-  XCircle,
-  PaperPlaneTilt,
-  CheckCircle,
-  Chats,
-  Smiley,
-  ShieldCheck,
-  DownloadSimple,
-  Trash
+  ArrowClockwise, 
+  XCircle, 
+  PaperPlaneTilt, 
+  CheckCircle, 
+  Chats, 
+  Smiley, 
+  ShieldCheck, 
+  DownloadSimple, 
+  Trash 
 } from '@phosphor-icons/react'
 
 export default function ResultsPage() {
@@ -38,6 +38,8 @@ export default function ResultsPage() {
   const [copied, setCopied] = useState(false)
   const [replyText, setReplyText] = useState('')
   const [sendingReply, setSendingReply] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [deletingRoom, setDeletingRoom] = useState(false)
 
   const { submissions, refetch: refetchSubmissions } = useSubmissionsData(params.id as string)
   const { threads, refetch: refetchThreads } = useThreadsData(params.id as string)
@@ -288,31 +290,31 @@ export default function ResultsPage() {
   return (
     <div className="min-h-screen bg-[#f5f0e8] text-[#1c1917]">
       {/* Top Header */}
-      <header className="border-b border-[#ddd5c8] bg-[#f5f0e8] sticky top-0 z-20 px-6 py-4 backdrop-blur-md">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
+      <header className="border-b border-[#ddd5c8] bg-[#f5f0e8] sticky top-0 z-20 px-4 sm:px-6 py-3.5 sm:py-4 backdrop-blur-md">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <button
             onClick={() => router.push('/dashboard')}
-            className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-heading transition"
+            className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-heading transition self-start sm:self-auto"
           >
             <ArrowLeft size={16} />
             <span>Dashboard</span>
           </button>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             {submissions.length > 0 && (
               <button
                 onClick={exportCSV}
-                className="px-3.5 py-2 bg-[#ede8dc] border border-[#ddd5c8] rounded-full text-xs font-semibold text-heading hover:bg-[#ddd5c8] transition flex items-center gap-1.5"
+                className="px-3 py-1.5 sm:px-3.5 sm:py-2 bg-[#ede8dc] border border-[#ddd5c8] rounded-full text-xs font-semibold text-heading hover:bg-[#ddd5c8] transition flex items-center gap-1.5"
                 title="Export submissions to CSV"
               >
                 <DownloadSimple size={14} />
-                <span className="hidden sm:inline">Export CSV</span>
+                <span>Export CSV</span>
               </button>
             )}
 
             <button
               onClick={copyRoomLink}
-              className="px-4 py-2 bg-[#ede8dc] border border-[#ddd5c8] rounded-full text-xs font-semibold text-heading hover:bg-[#1c1917] hover:text-[#f5f0e8] transition flex items-center gap-1.5"
+              className="px-3.5 py-1.5 sm:px-4 sm:py-2 bg-[#ede8dc] border border-[#ddd5c8] rounded-full text-xs font-semibold text-heading hover:bg-[#1c1917] hover:text-[#f5f0e8] transition flex items-center gap-1.5"
             >
               {copied ? (
                 <>
@@ -322,7 +324,7 @@ export default function ResultsPage() {
               ) : (
                 <>
                   <Copy size={14} />
-                  <span>Copy Responder Link</span>
+                  <span>Copy Link</span>
                 </>
               )}
             </button>
@@ -330,14 +332,14 @@ export default function ResultsPage() {
             {room.status === 'open' ? (
               <button
                 onClick={closeRoom}
-                className="px-4 py-2 text-xs font-semibold text-[#c0392b] border border-[#c0392b]/30 bg-[#c0392b]/10 rounded-full hover:bg-[#c0392b] hover:text-white transition"
+                className="px-3.5 py-1.5 sm:px-4 sm:py-2 text-xs font-semibold text-[#c0392b] border border-[#c0392b]/30 bg-[#c0392b]/10 rounded-full hover:bg-[#c0392b] hover:text-white transition"
               >
                 Close Room
               </button>
             ) : (
               <button
                 onClick={reopenRoom}
-                className="px-4 py-2 text-xs font-semibold text-[#7c8c5e] border border-[#7c8c5e]/40 bg-[#7c8c5e]/15 rounded-full hover:bg-[#7c8c5e] hover:text-white transition flex items-center gap-1"
+                className="px-3.5 py-1.5 sm:px-4 sm:py-2 text-xs font-semibold text-[#7c8c5e] border border-[#7c8c5e]/40 bg-[#7c8c5e]/15 rounded-full hover:bg-[#7c8c5e] hover:text-white transition flex items-center gap-1"
               >
                 <ArrowClockwise size={13} />
                 <span>Reopen</span>
@@ -350,7 +352,7 @@ export default function ResultsPage() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-6 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         {/* Title Area */}
         <section className="mb-8">
           <p className="eyebrow text-[#c2674a]">Room Insights</p>
@@ -650,14 +652,7 @@ export default function ResultsPage() {
 
                 <button
                   type="button"
-                  onClick={async () => {
-                    if (confirm(`Are you sure you want to permanently delete "${room.name}"? This cannot be undone.`)) {
-                      const res = await fetch(`/api/rooms/${room.id}`, { method: 'DELETE' })
-                      if (res.ok) {
-                        router.push('/dashboard')
-                      }
-                    }
-                  }}
+                  onClick={() => setShowDeleteModal(true)}
                   className="px-4 py-2 bg-[#c0392b] text-white rounded-full text-xs font-semibold hover:bg-[#a93226] transition flex items-center gap-1.5 ml-auto"
                 >
                   <Trash size={14} />
@@ -669,10 +664,37 @@ export default function ResultsPage() {
         )}
       </main>
 
+      {/* Delete Room Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showDeleteModal}
+        title="Delete this room permanently?"
+        description={`Are you sure you want to delete "${room?.name}"? All responses, questions, and discussion threads will be permanently erased.`}
+        confirmText="Delete Room"
+        cancelText="Cancel"
+        variant="danger"
+        loading={deletingRoom}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={async () => {
+          if (!room) return
+          setDeletingRoom(true)
+          try {
+            const res = await fetch(`/api/rooms/${room.id}`, { method: 'DELETE' })
+            if (res.ok) {
+              router.push('/dashboard')
+            }
+          } catch (err) {
+            console.error(err)
+          } finally {
+            setDeletingRoom(false)
+            setShowDeleteModal(false)
+          }
+        }}
+      />
+
       {/* Slide-in Thread Panel from Right */}
       {selectedThread && (
         <div className="fixed inset-0 z-50 flex justify-end bg-black/30 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-lg bg-[#f5f0e8] h-full shadow-2xl flex flex-col p-6 border-l border-[#ddd5c8] overflow-hidden animate-slide-left">
+          <div className="w-full max-w-full sm:max-w-lg bg-[#f5f0e8] h-full shadow-2xl flex flex-col p-4 sm:p-6 border-l border-[#ddd5c8] overflow-hidden animate-slide-left">
             <div className="flex items-center justify-between pb-4 border-b border-[#ddd5c8]">
               <div>
                 <h3 className="font-serif text-xl text-heading">Anonymous Thread</h3>

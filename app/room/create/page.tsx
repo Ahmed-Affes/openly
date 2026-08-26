@@ -413,14 +413,14 @@ export default function CreateRoomPage() {
                         maxLength={500}
                         rows={2}
                         placeholder={`Question ${i + 1} prompt...`}
-                        className="w-full flex-1 text-sm"
+                        className="w-full flex-1 text-sm min-w-0"
                       />
 
                       {questions.length > 1 && (
                         <button
                           type="button"
                           onClick={() => removeQ(i)}
-                          className="mt-2 p-2 text-muted-foreground hover:text-[#c0392b] transition"
+                          className="mt-2 p-1.5 text-muted-foreground hover:text-[#c0392b] transition shrink-0"
                           title="Delete question"
                         >
                           <Trash size={18} />

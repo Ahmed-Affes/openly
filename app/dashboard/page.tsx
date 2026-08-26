@@ -7,7 +7,7 @@ import { motion } from 'framer-motion'
 import { createClient } from '@/lib/supabase/client'
 import { Room } from '@/types'
 import { calculateSafetyScore, getScoreMessage } from '@/lib/utils/score'
-import { Logo, Button, RoomTypeBadge } from '@/components/shared'
+import { Logo, Button, RoomTypeBadge, ConfirmModal } from '@/components/shared'
 import { useUser } from '@/hooks/useUser'
 import { 
   House, 
@@ -33,6 +33,8 @@ export default function DashboardPage() {
   const { user, signOut } = useUser()
   const [rooms, setRooms] = useState<Room[]>([])
   const [loading, setLoading] = useState(true)
+  const [roomToDelete, setRoomToDelete] = useState<{ id: string; name: string } | null>(null)
+  const [deletingRoom, setDeletingRoom] = useState(false)
   const [safetyMetrics, setSafetyMetrics] = useState({
     score: 84,
     trend: 'stable' as 'up' | 'down' | 'stable',
@@ -163,17 +165,24 @@ export default function DashboardPage() {
     }
   }
 
-  const handleDeleteRoom = async (e: React.MouseEvent, roomId: string, roomName: string) => {
+  const handleDeleteRoom = (e: React.MouseEvent, roomId: string, roomName: string) => {
     e.stopPropagation()
-    if (confirm(`Are you sure you want to permanently delete "${roomName}"? This cannot be undone.`)) {
-      try {
-        const res = await fetch(`/api/rooms/${roomId}`, { method: 'DELETE' })
-        if (res.ok) {
-          setRooms(prev => prev.filter(r => r.id !== roomId))
-        }
-      } catch (err) {
-        console.error('Failed to delete room:', err)
+    setRoomToDelete({ id: roomId, name: roomName })
+  }
+
+  const confirmDeleteRoom = async () => {
+    if (!roomToDelete) return
+    setDeletingRoom(true)
+    try {
+      const res = await fetch(`/api/rooms/${roomToDelete.id}`, { method: 'DELETE' })
+      if (res.ok) {
+        setRooms(prev => prev.filter(r => r.id !== roomToDelete.id))
       }
+    } catch (err) {
+      console.error('Failed to delete room:', err)
+    } finally {
+      setDeletingRoom(false)
+      setRoomToDelete(null)
     }
   }
 
@@ -508,6 +517,19 @@ export default function DashboardPage() {
           <span>Settings</span>
         </button>
       </nav>
+
+      {/* Custom Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!roomToDelete}
+        title="Delete this room?"
+        description={`Are you sure you want to delete "${roomToDelete?.name}"? All responses, questions, and anonymous discussion threads will be permanently erased.`}
+        confirmText="Delete Room"
+        cancelText="Keep Room"
+        variant="danger"
+        loading={deletingRoom}
+        onClose={() => setRoomToDelete(null)}
+        onConfirm={confirmDeleteRoom}
+      />
     </div>
   )
 }
